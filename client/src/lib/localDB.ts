@@ -11,7 +11,7 @@ import type {
 } from '../types';
 
 // Bump this version whenever seed data changes to force a re-seed
-const DB_VERSION = '2';
+const DB_VERSION = '3';
 
 // ── Storage Keys ──────────────────────────────────────────────────────────────
 const KEYS = {
@@ -63,18 +63,18 @@ export function authenticateUser(email: string, password: string): { user: User;
   const found = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
   if (!found) return null;
 
-  // First-time login — no password set yet
-  if (!found.password && (!password || password === '')) {
+  // No password set (employee first login) → always trigger setup flow
+  // Matches backend: if (!user.passwordHash) return { requiresPasswordSetup: true }
+  if (!found.password) {
     return { user: sanitizeUser(found), requiresPasswordSetup: true };
   }
 
-  // Password mismatch
-  if (found.password && found.password !== password) return null;
+  // Has password but submitted blank → wrong password
+  // Matches backend: if (!password) return 401
+  if (!password) return null;
 
-  // First-time login with blank pw when pw is not set — allow
-  if (!found.password && password === '') {
-    return { user: sanitizeUser(found), requiresPasswordSetup: true };
-  }
+  // Plain string comparison (replaces bcrypt.compare on server)
+  if (found.password !== password) return null;
 
   return { user: sanitizeUser(found), requiresPasswordSetup: false };
 }
@@ -83,6 +83,12 @@ export function setupPassword(email: string, password: string): User | null {
   const users = getItem<(User & { password?: string })[]>(KEYS.USERS, []);
   const idx = users.findIndex((u) => u.email.toLowerCase() === email.toLowerCase());
   if (idx === -1) return null;
+
+  // Matches backend: if password already set, reject
+  if (users[idx].password) {
+    throw new Error('Password already set. Please log in normally.');
+  }
+
   users[idx].password = password;
   setItem(KEYS.USERS, users);
   return sanitizeUser(users[idx]);

@@ -1,96 +1,110 @@
 /**
- * Seed data — pre-populates localStorage with realistic demo data.
- * Called once when the app first loads (or after a DB reset).
+ * Seed data — mirrors the real backend seed (server/src/prisma/seed.ts) exactly.
+ * Admin password: failsafe@123
+ * Employees: no password on first load — they set it themselves on first login.
  */
 
 import type {
   User, RSVP, Poll, Photo, Message, Feedback, EventConfig, ActivityLog,
 } from '../types';
 
-// ── Demo Users (password for admin is "admin123", employees have no password initially) ──
+// ── Users (matches server/src/prisma/seed.ts exactly) ─────────────────────────
 export const DEMO_USERS: (User & { password?: string })[] = [
+  // ── 3 Admins (password: failsafe@123) ──────────────────────────────────────
   {
     id: 'usr-admin-1',
-    email: 'admin@siemens.com',
-    name: 'Priya Sharma',
+    email: 'ashutosh.choudhary@siemens.com',
+    name: 'Ashutosh Choudhary',
     role: 'ADMIN',
-    password: 'admin123',
+    password: 'failsafe@123',
     createdAt: '2026-01-15T10:00:00.000Z',
   },
   {
+    id: 'usr-admin-2',
+    email: 'd.yashas@siemens.com',
+    name: 'Yashas D',
+    role: 'ADMIN',
+    password: 'failsafe@123',
+    createdAt: '2026-01-15T10:00:00.000Z',
+  },
+  {
+    id: 'usr-admin-3',
+    email: 'nagarjuna.kn@siemens.com',
+    name: 'Nagarjuna KN',
+    role: 'ADMIN',
+    password: 'failsafe@123',
+    createdAt: '2026-01-15T10:00:00.000Z',
+  },
+
+  // ── 10 Employees (NO password — set on first login) ────────────────────────
+  {
     id: 'usr-emp-1',
-    email: 'rahul.kumar@siemens.com',
-    name: 'Rahul Kumar',
+    email: 'john.smith@siemens.com',
+    name: 'John Smith',
     role: 'EMPLOYEE',
-    password: 'password',
+    // no password — triggers setup flow on first login
     createdAt: '2026-01-20T10:00:00.000Z',
   },
   {
     id: 'usr-emp-2',
-    email: 'ananya.patel@siemens.com',
-    name: 'Ananya Patel',
+    email: 'jane.doe@siemens.com',
+    name: 'Jane Doe',
     role: 'EMPLOYEE',
-    password: 'password',
     createdAt: '2026-01-20T10:00:00.000Z',
   },
   {
     id: 'usr-emp-3',
-    email: 'vikram.singh@siemens.com',
-    name: 'Vikram Singh',
+    email: 'bob.wilson@siemens.com',
+    name: 'Bob Wilson',
     role: 'EMPLOYEE',
-    password: 'password',
     createdAt: '2026-01-21T10:00:00.000Z',
   },
   {
     id: 'usr-emp-4',
-    email: 'neha.gupta@siemens.com',
-    name: 'Neha Gupta',
+    email: 'alice.johnson@siemens.com',
+    name: 'Alice Johnson',
     role: 'EMPLOYEE',
-    password: 'password',
     createdAt: '2026-01-22T10:00:00.000Z',
   },
   {
     id: 'usr-emp-5',
-    email: 'arjun.mehta@siemens.com',
-    name: 'Arjun Mehta',
+    email: 'charlie.brown@siemens.com',
+    name: 'Charlie Brown',
     role: 'EMPLOYEE',
-    password: 'password',
     createdAt: '2026-01-23T10:00:00.000Z',
   },
   {
     id: 'usr-emp-6',
-    email: 'divya.nair@siemens.com',
-    name: 'Divya Nair',
+    email: 'diana.prince@siemens.com',
+    name: 'Diana Prince',
     role: 'EMPLOYEE',
-    password: 'password',
     createdAt: '2026-01-24T10:00:00.000Z',
   },
   {
     id: 'usr-emp-7',
-    email: 'karthik.reddy@siemens.com',
-    name: 'Karthik Reddy',
+    email: 'evan.davis@siemens.com',
+    name: 'Evan Davis',
     role: 'EMPLOYEE',
-    password: 'password',
     createdAt: '2026-01-25T10:00:00.000Z',
   },
   {
     id: 'usr-emp-8',
-    email: 'meera.joshi@siemens.com',
-    name: 'Meera Joshi',
+    email: 'fiona.green@siemens.com',
+    name: 'Fiona Green',
     role: 'EMPLOYEE',
     createdAt: '2026-02-01T10:00:00.000Z',
   },
   {
     id: 'usr-emp-9',
-    email: 'sanjay.verma@siemens.com',
-    name: 'Sanjay Verma',
+    email: 'george.miller@siemens.com',
+    name: 'George Miller',
     role: 'EMPLOYEE',
     createdAt: '2026-02-05T10:00:00.000Z',
   },
   {
     id: 'usr-emp-10',
-    email: 'pooja.shah@siemens.com',
-    name: 'Pooja Shah',
+    email: 'hannah.white@siemens.com',
+    name: 'Hannah White',
     role: 'EMPLOYEE',
     createdAt: '2026-02-10T10:00:00.000Z',
   },
@@ -100,189 +114,202 @@ const DEMO_RSVPS: RSVP[] = [
   {
     id: 'rsvp-1', userId: 'usr-emp-1', attending: true,
     createdAt: '2026-03-10T14:30:00.000Z', updatedAt: '2026-03-10T14:30:00.000Z',
-    user: { id: 'usr-emp-1', name: 'Rahul Kumar', email: 'rahul.kumar@siemens.com' },
+    user: { id: 'usr-emp-1', name: 'John Smith', email: 'john.smith@siemens.com' },
   },
   {
     id: 'rsvp-2', userId: 'usr-emp-2', attending: true,
     createdAt: '2026-03-11T09:15:00.000Z', updatedAt: '2026-03-11T09:15:00.000Z',
-    user: { id: 'usr-emp-2', name: 'Ananya Patel', email: 'ananya.patel@siemens.com' },
+    user: { id: 'usr-emp-2', name: 'Jane Doe', email: 'jane.doe@siemens.com' },
   },
   {
     id: 'rsvp-3', userId: 'usr-emp-3', attending: true,
     createdAt: '2026-03-12T16:45:00.000Z', updatedAt: '2026-03-12T16:45:00.000Z',
-    user: { id: 'usr-emp-3', name: 'Vikram Singh', email: 'vikram.singh@siemens.com' },
+    user: { id: 'usr-emp-3', name: 'Bob Wilson', email: 'bob.wilson@siemens.com' },
   },
   {
     id: 'rsvp-4', userId: 'usr-emp-4', attending: false,
     createdAt: '2026-03-13T11:20:00.000Z', updatedAt: '2026-03-13T11:20:00.000Z',
-    user: { id: 'usr-emp-4', name: 'Neha Gupta', email: 'neha.gupta@siemens.com' },
+    user: { id: 'usr-emp-4', name: 'Alice Johnson', email: 'alice.johnson@siemens.com' },
   },
   {
     id: 'rsvp-5', userId: 'usr-emp-5', attending: true,
     createdAt: '2026-03-14T08:00:00.000Z', updatedAt: '2026-03-14T08:00:00.000Z',
-    user: { id: 'usr-emp-5', name: 'Arjun Mehta', email: 'arjun.mehta@siemens.com' },
+    user: { id: 'usr-emp-5', name: 'Charlie Brown', email: 'charlie.brown@siemens.com' },
   },
   {
     id: 'rsvp-6', userId: 'usr-emp-6', attending: true,
     createdAt: '2026-03-15T13:30:00.000Z', updatedAt: '2026-03-15T13:30:00.000Z',
-    user: { id: 'usr-emp-6', name: 'Divya Nair', email: 'divya.nair@siemens.com' },
+    user: { id: 'usr-emp-6', name: 'Diana Prince', email: 'diana.prince@siemens.com' },
   },
   {
     id: 'rsvp-7', userId: 'usr-emp-7', attending: false,
     createdAt: '2026-03-16T10:00:00.000Z', updatedAt: '2026-03-16T10:00:00.000Z',
-    user: { id: 'usr-emp-7', name: 'Karthik Reddy', email: 'karthik.reddy@siemens.com' },
+    user: { id: 'usr-emp-7', name: 'Evan Davis', email: 'evan.davis@siemens.com' },
   },
 ];
 
+// Polls match the backend seed exactly
 const DEMO_POLLS: (Poll & { votes: Record<string, string> })[] = [
   {
     id: 'poll-1',
-    question: '🍕 What should we have for lunch?',
+    question: 'What activity are you most excited about?',
     isActive: true,
     createdAt: '2026-03-15T10:00:00.000Z',
     userVote: null,
     votes: {
       'usr-emp-1': 'opt-1a',
-      'usr-emp-2': 'opt-1b',
+      'usr-emp-2': 'opt-1c',
       'usr-emp-3': 'opt-1a',
-      'usr-emp-5': 'opt-1c',
-      'usr-emp-6': 'opt-1a',
+      'usr-emp-5': 'opt-1e',
+      'usr-emp-6': 'opt-1b',
     },
     options: [
-      { id: 'opt-1a', text: 'BBQ & Grill 🔥', voteCount: 3 },
-      { id: 'opt-1b', text: 'Buffet Spread 🍱', voteCount: 1 },
-      { id: 'opt-1c', text: 'Pizza Party 🍕', voteCount: 1 },
-      { id: 'opt-1d', text: 'Street Food Festival 🌮', voteCount: 0 },
+      { id: 'opt-1a', text: '🏖️ Beach Volleyball',  voteCount: 2 },
+      { id: 'opt-1b', text: '🎨 Team Art Workshop',  voteCount: 1 },
+      { id: 'opt-1c', text: '🎮 Gaming Tournament',  voteCount: 1 },
+      { id: 'opt-1d', text: '🧘 Yoga & Wellness',    voteCount: 0 },
+      { id: 'opt-1e', text: '🍳 Cooking Challenge',  voteCount: 1 },
     ],
   },
   {
     id: 'poll-2',
-    question: '🎮 Best team activity?',
+    question: 'What cuisine should we have for lunch?',
     isActive: true,
     createdAt: '2026-03-18T14:00:00.000Z',
     userVote: null,
     votes: {
-      'usr-emp-1': 'opt-2b',
+      'usr-emp-1': 'opt-2a',
       'usr-emp-2': 'opt-2a',
       'usr-emp-3': 'opt-2c',
       'usr-emp-4': 'opt-2b',
     },
     options: [
-      { id: 'opt-2a', text: 'Beach Volleyball 🏐', voteCount: 1 },
-      { id: 'opt-2b', text: 'Treasure Hunt 🗺️', voteCount: 2 },
-      { id: 'opt-2c', text: 'Kayaking 🛶', voteCount: 1 },
-      { id: 'opt-2d', text: 'Cricket Match 🏏', voteCount: 0 },
+      { id: 'opt-2a', text: '🍔 BBQ & Grill',   voteCount: 2 },
+      { id: 'opt-2b', text: '🍕 Italian',        voteCount: 1 },
+      { id: 'opt-2c', text: '🍣 Japanese',       voteCount: 1 },
+      { id: 'opt-2d', text: '🌮 Mexican',        voteCount: 0 },
+      { id: 'opt-2e', text: '🥗 Healthy/Vegan',  voteCount: 0 },
     ],
   },
 ];
 
 const DEMO_MESSAGES: Message[] = [
   {
-    id: 'msg-1', senderId: 'usr-admin-1', content: 'Hey everyone! 🎉 The Team Outing 2026 portal is live! RSVP now and let us know if you\'re joining the fun!',
+    id: 'msg-1', senderId: 'usr-admin-1',
+    content: 'Hey everyone! 🎉 The Team Outing 2026 portal is live! RSVP now and let us know if you\'re joining the fun!',
     isGlobal: true, createdAt: '2026-03-10T09:00:00.000Z',
-    sender: { id: 'usr-admin-1', name: 'Priya Sharma', role: 'ADMIN' },
+    sender: { id: 'usr-admin-1', name: 'Ashutosh Choudhary', role: 'ADMIN' },
   },
   {
-    id: 'msg-2', senderId: 'usr-emp-1', content: 'This is going to be amazing! Already RSVP\'d YES 🙌',
+    id: 'msg-2', senderId: 'usr-emp-1',
+    content: 'This is going to be amazing! Already RSVP\'d YES 🙌',
     isGlobal: true, createdAt: '2026-03-10T14:35:00.000Z',
-    sender: { id: 'usr-emp-1', name: 'Rahul Kumar', role: 'EMPLOYEE' },
+    sender: { id: 'usr-emp-1', name: 'John Smith', role: 'EMPLOYEE' },
   },
   {
-    id: 'msg-3', senderId: 'usr-emp-2', content: 'Can\'t wait! Is there going to be beach volleyball this year? 🏐',
+    id: 'msg-3', senderId: 'usr-emp-2',
+    content: 'Can\'t wait! Is there going to be beach volleyball this year? 🏐',
     isGlobal: true, createdAt: '2026-03-11T09:20:00.000Z',
-    sender: { id: 'usr-emp-2', name: 'Ananya Patel', role: 'EMPLOYEE' },
+    sender: { id: 'usr-emp-2', name: 'Jane Doe', role: 'EMPLOYEE' },
   },
   {
-    id: 'msg-4', senderId: 'usr-admin-1', content: 'Yes! Beach volleyball, kayaking, treasure hunt and more! Check out the polls to vote for your favorites 🗳️',
+    id: 'msg-4', senderId: 'usr-admin-2',
+    content: 'Yes! Beach volleyball, cooking challenge, gaming tournament and more! Check out the polls 🗳️',
     isGlobal: true, createdAt: '2026-03-11T10:00:00.000Z',
-    sender: { id: 'usr-admin-1', name: 'Priya Sharma', role: 'ADMIN' },
+    sender: { id: 'usr-admin-2', name: 'Yashas D', role: 'ADMIN' },
   },
   {
-    id: 'msg-5', senderId: 'usr-emp-5', content: 'The venue looks incredible! Sunset Beach Resort is a great pick 🌅',
+    id: 'msg-5', senderId: 'usr-emp-5',
+    content: 'The venue looks incredible! Sunset Beach Resort is a great pick 🌅',
     isGlobal: true, createdAt: '2026-03-14T08:05:00.000Z',
-    sender: { id: 'usr-emp-5', name: 'Arjun Mehta', role: 'EMPLOYEE' },
+    sender: { id: 'usr-emp-5', name: 'Charlie Brown', role: 'EMPLOYEE' },
   },
   {
-    id: 'msg-6', senderId: 'usr-emp-3', content: 'Who\'s bringing the cricket bat? 🏏😂',
+    id: 'msg-6', senderId: 'usr-emp-3',
+    content: 'Voted for BBQ & Grill on the food poll — who\'s with me? 🔥',
     isGlobal: true, createdAt: '2026-03-15T11:00:00.000Z',
-    sender: { id: 'usr-emp-3', name: 'Vikram Singh', role: 'EMPLOYEE' },
+    sender: { id: 'usr-emp-3', name: 'Bob Wilson', role: 'EMPLOYEE' },
   },
   {
-    id: 'msg-7', senderId: 'usr-emp-6', content: 'I just voted in both polls! Let\'s go BBQ! 🔥🔥',
+    id: 'msg-7', senderId: 'usr-emp-6',
+    content: 'I just voted in both polls! Can\'t decide between beach volleyball and cooking challenge 😄',
     isGlobal: true, createdAt: '2026-03-16T15:30:00.000Z',
-    sender: { id: 'usr-emp-6', name: 'Divya Nair', role: 'EMPLOYEE' },
+    sender: { id: 'usr-emp-6', name: 'Diana Prince', role: 'EMPLOYEE' },
   },
 ];
 
 const DEMO_FEEDBACKS: Feedback[] = [
   {
     id: 'fb-1', userId: 'usr-emp-1', isAnonymous: false, rating: 5,
-    message: 'Love the planning so far! The venue choice is perfect and the whole portal experience is top notch. Keep it up!',
+    message: 'Love the planning so far! The venue choice is perfect and the portal experience is top notch. Keep it up!',
     category: 'GENERAL', submittedAt: '2026-03-12T10:00:00.000Z',
-    displayName: 'Rahul Kumar',
-    user: { id: 'usr-emp-1', name: 'Rahul Kumar', email: 'rahul.kumar@siemens.com' },
+    displayName: 'John Smith',
+    user: { id: 'usr-emp-1', name: 'John Smith', email: 'john.smith@siemens.com' },
   },
   {
     id: 'fb-2', isAnonymous: true, rating: 4,
-    message: 'It would be great if we could have vegetarian and vegan options clearly labeled at the food stations.',
+    message: 'Please make sure there are vegetarian and vegan options clearly labeled at all food stations.',
     category: 'FOOD', submittedAt: '2026-03-14T16:00:00.000Z',
     displayName: 'Anonymous',
   },
   {
     id: 'fb-3', userId: 'usr-emp-5', isAnonymous: false, rating: 5,
-    message: 'Suggestion: Can we have a bonfire in the evening? That would be such a great way to end the day!',
+    message: 'Suggestion: Can we have a bonfire in the evening? That would be a perfect way to end the day!',
     category: 'SUGGESTIONS', submittedAt: '2026-03-16T09:00:00.000Z',
-    displayName: 'Arjun Mehta',
-    user: { id: 'usr-emp-5', name: 'Arjun Mehta', email: 'arjun.mehta@siemens.com' },
+    displayName: 'Charlie Brown',
+    user: { id: 'usr-emp-5', name: 'Charlie Brown', email: 'charlie.brown@siemens.com' },
   },
 ];
 
+// Event config matches server/src/prisma/seed.ts exactly
 const DEMO_EVENT_CONFIG: EventConfig = {
-  id: 'evt-1',
+  id: 'default-config',
   outingDate: '2026-04-01T09:00:00.000Z',
   venueName: 'Sunset Beach Resort',
-  venueAddress: '123 Ocean Drive, Goa, India',
+  venueAddress: '123 Ocean Drive, Crystal Bay, CA 90210',
   description:
-    'Join us for an unforgettable day of adventure, relaxation, and team bonding at the beautiful Sunset Beach Resort! 🌴\n\nActivities include beach games, kayaking, treasure hunts, team challenges, and an epic BBQ dinner under the stars. Don\'t forget your sunscreen! ☀️',
+    'Join us for an amazing day of fun, food, and team bonding! ' +
+    'Beach games, BBQ lunch, team challenges, and sunset dinner await. ' +
+    'This is going to be the best team outing yet! 🎉🌴',
   bannerUrl: undefined,
 };
 
 const DEMO_ACTIVITY_LOG: ActivityLog[] = [
   {
     id: 'act-1', userId: 'usr-admin-1', action: 'EVENT_CREATED',
-    details: 'Priya Sharma created the Team Outing 2026 event',
+    details: 'Ashutosh Choudhary created the Team Outing 2026 event',
     createdAt: '2026-03-10T08:00:00.000Z',
-    user: { id: 'usr-admin-1', name: 'Priya Sharma' },
+    user: { id: 'usr-admin-1', name: 'Ashutosh Choudhary' },
   },
   {
     id: 'act-2', userId: 'usr-emp-1', action: 'RSVP_SUBMITTED',
-    details: 'Rahul Kumar RSVP\'d Yes',
+    details: 'John Smith RSVP\'d Yes',
     createdAt: '2026-03-10T14:30:00.000Z',
-    user: { id: 'usr-emp-1', name: 'Rahul Kumar' },
+    user: { id: 'usr-emp-1', name: 'John Smith' },
   },
   {
     id: 'act-3', userId: 'usr-emp-2', action: 'RSVP_SUBMITTED',
-    details: 'Ananya Patel RSVP\'d Yes',
+    details: 'Jane Doe RSVP\'d Yes',
     createdAt: '2026-03-11T09:15:00.000Z',
-    user: { id: 'usr-emp-2', name: 'Ananya Patel' },
+    user: { id: 'usr-emp-2', name: 'Jane Doe' },
   },
   {
-    id: 'act-4', userId: 'usr-admin-1', action: 'POLL_CREATED',
-    details: 'New poll: "What should we have for lunch?"',
+    id: 'act-4', userId: 'usr-admin-2', action: 'POLL_CREATED',
+    details: 'New poll: "What activity are you most excited about?"',
     createdAt: '2026-03-15T10:00:00.000Z',
-    user: { id: 'usr-admin-1', name: 'Priya Sharma' },
+    user: { id: 'usr-admin-2', name: 'Yashas D' },
   },
   {
     id: 'act-5', userId: 'usr-emp-3', action: 'RSVP_SUBMITTED',
-    details: 'Vikram Singh RSVP\'d Yes',
+    details: 'Bob Wilson RSVP\'d Yes',
     createdAt: '2026-03-12T16:45:00.000Z',
-    user: { id: 'usr-emp-3', name: 'Vikram Singh' },
+    user: { id: 'usr-emp-3', name: 'Bob Wilson' },
   },
   {
     id: 'act-6', userId: 'usr-emp-1', action: 'FEEDBACK_SUBMITTED',
-    details: 'Rahul Kumar submitted feedback',
+    details: 'John Smith submitted feedback',
     createdAt: '2026-03-12T10:00:00.000Z',
-    user: { id: 'usr-emp-1', name: 'Rahul Kumar' },
+    user: { id: 'usr-emp-1', name: 'John Smith' },
   },
 ];
 
