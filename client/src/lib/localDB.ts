@@ -63,17 +63,15 @@ export function authenticateUser(email: string, password: string): { user: User;
   const found = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
   if (!found) return null;
 
-  // No password set (employee first login) → always trigger setup flow
-  // Matches backend: if (!user.passwordHash) return { requiresPasswordSetup: true }
+  // No password set → first-time employee setup
   if (!found.password) {
     return { user: sanitizeUser(found), requiresPasswordSetup: true };
   }
 
-  // Has password but submitted blank → wrong password
-  // Matches backend: if (!password) return 401
+  // Blank password submitted → wrong password
   if (!password) return null;
 
-  // Plain string comparison (replaces bcrypt.compare on server)
+  // Plain string comparison
   if (found.password !== password) return null;
 
   return { user: sanitizeUser(found), requiresPasswordSetup: false };
