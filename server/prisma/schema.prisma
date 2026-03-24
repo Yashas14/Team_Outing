@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String?
+  role         String    @default("EMPLOYEE")
+  avatar       String?
+  createdAt    DateTime  @default(now())
+
+  rsvp         RSVP?
+  votes        PollVote[]
+  photos       Photo[]
+  feedbacks    Feedback[]
+  sentMessages Message[] @relation("SentMessages")
+  activities   ActivityLog[]
+}
+
+model RSVP {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String   @unique
+  attending Boolean
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Poll {
+  id        String       @id @default(cuid())
+  question  String
+  options   PollOption[]
+  votes     PollVote[]
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+}
+
+model PollOption {
+  id     String     @id @default(cuid())
+  poll   Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  pollId String
+  text   String
+  votes  PollVote[]
+}
+
+model PollVote {
+  id       String     @id @default(cuid())
+  user     User       @relation(fields: [userId], references: [id])
+  userId   String
+  poll     Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  pollId   String
+  option   PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  optionId String
+  votedAt  DateTime   @default(now())
+
+  @@unique([userId, pollId])
+}
+
+model Photo {
+  id           String   @id @default(cuid())
+  uploader     User     @relation(fields: [uploaderId], references: [id])
+  uploaderId   String
+  url          String
+  thumbnailUrl String?
+  caption      String?
+  likes        Int      @default(0)
+  likedByJson  String   @default("[]")
+  uploadedAt   DateTime @default(now())
+}
+
+model Feedback {
+  id          String           @id @default(cuid())
+  user        User?            @relation(fields: [userId], references: [id])
+  userId      String?
+  isAnonymous Boolean          @default(false)
+  rating      Int
+  message     String
+  category    String   @default("GENERAL")
+  submittedAt DateTime         @default(now())
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  sender    User     @relation("SentMessages", fields: [senderId], references: [id])
+  senderId  String
+  content   String
+  isGlobal  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model EventConfig {
+  id           String   @id @default(cuid())
+  outingDate   DateTime
+  venueName    String?
+  venueAddress String?
+  description  String?
+  bannerUrl    String?
+  updatedAt    DateTime @updatedAt
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+}
