@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import api from '../lib/api';
+import { getEventConfig, updateEventConfig as updateConfig_ } from '../lib/localDB';
 import type { EventConfig } from '../types';
 
 interface EventState {
@@ -14,17 +14,13 @@ export const useEventStore = create<EventState>((set) => ({
   isLoading: false,
 
   fetchConfig: async () => {
-    try {
-      set({ isLoading: true });
-      const { data } = await api.get<EventConfig>('/event/config');
-      set({ config: data, isLoading: false });
-    } catch {
-      set({ isLoading: false });
-    }
+    set({ isLoading: true });
+    const config = getEventConfig();
+    set({ config, isLoading: false });
   },
 
   updateConfig: async (update) => {
-    const { data } = await api.put<EventConfig>('/admin/event-config', update);
-    set({ config: data });
+    const config = updateConfig_(update);
+    set({ config });
   },
 }));

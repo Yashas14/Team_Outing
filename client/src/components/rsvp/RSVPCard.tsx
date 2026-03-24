@@ -47,7 +47,7 @@ export default function RSVPCard() {
       setShowYesModal(true);
       setTimeout(() => setShowYesModal(false), 4000);
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to submit RSVP');
+      toast.error(err.message || 'Failed to submit RSVP');
     } finally {
       setIsSubmitting(false);
     }
@@ -63,7 +63,7 @@ export default function RSVPCard() {
       }
       setShowNoModal(true);
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to submit RSVP');
+      toast.error(err.message || 'Failed to submit RSVP');
     } finally {
       setIsSubmitting(false);
     }

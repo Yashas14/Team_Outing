@@ -5,7 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Star, Send, MessageSquare, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
-import api from '../../lib/api';
+import * as db from '../../lib/localDB';
+import { useAuthStore } from '../../store/authStore';
 import { timeAgo, getInitials, generateAvatarColor } from '../../lib/utils';
 import type { Feedback, FeedbackCategory } from '../../types';
 
@@ -49,13 +50,14 @@ export function FeedbackForm({ onSubmit }: { onSubmit: () => void }) {
   const submitFeedback = async (data: FeedbackFormData) => {
     setIsSubmitting(true);
     try {
-      await api.post('/feedback', data);
+      const user = useAuthStore.getState().user;
+      db.submitFeedback(data, user?.id || '');
       toast.success('Feedback submitted! Thank you! 🙏');
       reset();
       setRating(0);
       onSubmit();
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to submit');
+      toast.error(err.message || 'Failed to submit');
     } finally {
       setIsSubmitting(false);
     }

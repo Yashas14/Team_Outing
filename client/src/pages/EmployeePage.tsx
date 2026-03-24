@@ -8,13 +8,12 @@ import { useAuthStore } from '../store/authStore';
 import { useRsvpStore } from '../store/rsvpStore';
 import { usePollStore } from '../store/pollStore';
 import { useEventStore } from '../store/eventStore';
-import { useSocketEvents } from '../hooks/useSocketEvents';
 import CountdownTimer from '../components/countdown/CountdownTimer';
 import RSVPCard from '../components/rsvp/RSVPCard';
 import PollWidget from '../components/poll/PollWidget';
 import { PhotoUploader, PhotoGallery } from '../components/photos/PhotoGallery';
 import MessageBoard from '../components/messaging/MessageBoard';
-import api from '../lib/api';
+import * as db from '../lib/localDB';
 import type { Photo, Leaderboard } from '../types';
 
 type Tab = 'home' | 'photos' | 'messages' | 'polls';
@@ -27,8 +26,6 @@ export default function EmployeePage() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null);
-
-  useSocketEvents();
 
   useEffect(() => {
     fetchMyRsvp();
@@ -43,9 +40,9 @@ export default function EmployeePage() {
 
   const fetchPhotos = async () => {
     try {
-      const { data } = await api.get('/photos?limit=50');
-      setPhotos(data.photos);
-      const { data: lb } = await api.get('/photos/leaderboard');
+      const { photos: p } = db.getPhotos(50);
+      setPhotos(p);
+      const lb = db.getLeaderboard();
       setLeaderboard(lb);
     } catch {}
   };

@@ -1,31 +1,50 @@
-import { io, Socket } from 'socket.io-client';
+/**
+ * Local event bus — replaces socket.io for in-app reactivity.
+ * Components can emit/listen for events without a server.
+ */
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '';
+type Listener = (...args: any[]) => void;
 
-let socket: Socket | null = null;
+class EventBus {
+  private listeners = new Map<string, Set<Listener>>();
 
-export function getSocket(): Socket {
-  if (!socket) {
-    socket = io(SOCKET_URL, {
-      autoConnect: false,
-      transports: ['websocket', 'polling'],
+  on(event: string, fn: Listener): void {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    this.listeners.get(event)!.add(fn);
+  }
+
+  off(event: string, fn?: Listener): void {
+    if (!fn) {
+      this.listeners.delete(event);
+      return;
+    }
+    this.listeners.get(event)?.delete(fn);
+  }
+
+  emit(event: string, ...args: any[]): void {
+    this.listeners.get(event)?.forEach((fn) => {
+      try {
+        fn(...args);
+      } catch (e) {
+        console.error(`EventBus error on "${event}":`, e);
+      }
     });
   }
-  return socket;
 }
 
-export function connectSocket(role: 'ADMIN' | 'EMPLOYEE') {
-  const s = getSocket();
-  if (!s.connected) {
-    s.connect();
-  }
-  s.emit(role === 'ADMIN' ? 'join:admin' : 'join:employee');
-  return s;
+export const eventBus = new EventBus();
+
+// Legacy compat shims so existing code referencing socket helpers doesn't break
+export function getSocket() {
+  return eventBus;
+}
+
+export function connectSocket(_role?: string) {
+  return eventBus;
 }
 
 export function disconnectSocket() {
-  if (socket) {
-    socket.disconnect();
-    socket = null;
-  }
+  // no-op
 }

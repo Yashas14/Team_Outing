@@ -10,12 +10,11 @@ import { useAuthStore } from '../store/authStore';
 import { useRsvpStore } from '../store/rsvpStore';
 import { usePollStore } from '../store/pollStore';
 import { useEventStore } from '../store/eventStore';
-import { useSocketEvents } from '../hooks/useSocketEvents';
 import CountdownTimer from '../components/countdown/CountdownTimer';
 import PollWidget from '../components/poll/PollWidget';
 import { PhotoGallery, PhotoUploader } from '../components/photos/PhotoGallery';
 import MessageBoard from '../components/messaging/MessageBoard';
-import api from '../lib/api';
+import * as db from '../lib/localDB';
 import { formatDate, formatTableDate, timeAgo } from '../lib/utils';
 import type { AdminStats, Photo, RSVP, ActivityLog } from '../types';
 
@@ -50,8 +49,6 @@ export default function AdminPage() {
   const [editAddress, setEditAddress] = useState('');
   const [editDesc, setEditDesc] = useState('');
 
-  useSocketEvents();
-
   useEffect(() => {
     fetchStats();
     fetchCounts();
@@ -72,22 +69,22 @@ export default function AdminPage() {
 
   const fetchStats = async () => {
     try {
-      const { data } = await api.get<AdminStats>('/admin/stats');
-      setStats(data);
+      const stats = db.getAdminStats();
+      setStats(stats);
     } catch {}
   };
 
   const fetchPhotos = async () => {
     try {
-      const { data } = await api.get('/photos?limit=100');
-      setPhotos(data.photos);
+      const { photos: p } = db.getPhotos(100);
+      setPhotos(p);
     } catch {}
   };
 
   const fetchActivity = async () => {
     try {
-      const { data } = await api.get('/admin/activity-log');
-      setActivityLog(data);
+      const logs = db.getActivityLog();
+      setActivityLog(logs);
     } catch {}
   };
 
@@ -131,17 +128,14 @@ export default function AdminPage() {
 
   const handleInvite = async () => {
     try {
-      await api.post('/admin/users/invite', {
-        email: inviteEmail,
-        name: inviteName,
-      });
+      db.inviteUser(inviteEmail, inviteName);
       toast.success(`Invited ${inviteName}!`);
       setShowInvite(false);
       setInviteEmail('');
       setInviteName('');
       fetchStats();
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Invite failed');
+      toast.error(err.message || 'Invite failed');
     }
   };
 

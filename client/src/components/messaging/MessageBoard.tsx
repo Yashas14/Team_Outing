@@ -2,8 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Send, MessageCircle, Smile } from 'lucide-react';
 import toast from 'react-hot-toast';
-import api from '../../lib/api';
-import { getSocket } from '../../lib/socket';
+import * as db from '../../lib/localDB';
 import { useAuthStore } from '../../store/authStore';
 import { timeAgo, getInitials, generateAvatarColor } from '../../lib/utils';
 import type { Message } from '../../types';
@@ -20,35 +19,27 @@ export default function MessageBoard() {
 
   useEffect(() => {
     fetchMessages();
-    const socket = getSocket();
-    socket.on('message:new', ({ message }) => {
-      setMessages((prev) => [...prev, message]);
-    });
-    return () => {
-      socket.off('message:new');
-    };
   }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const fetchMessages = async () => {
-    try {
-      const { data } = await api.get('/messages');
-      setMessages(data.messages);
-    } catch {}
+  const fetchMessages = () => {
+    const { messages: msgs } = db.getMessages();
+    setMessages(msgs);
   };
 
   const sendMessage = async () => {
-    if (!content.trim()) return;
+    if (!content.trim() || !user) return;
     setIsSending(true);
     try {
-      await api.post('/messages', { content: content.trim(), isGlobal: true });
+      const msg = db.sendMessage(content.trim(), user.id, true);
+      setMessages((prev) => [...prev, msg]);
       setContent('');
       setShowEmoji(false);
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to send');
+      toast.error(err.message || 'Failed to send');
     } finally {
       setIsSending(false);
     }

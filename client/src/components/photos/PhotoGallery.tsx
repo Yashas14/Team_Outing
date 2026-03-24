@@ -3,7 +3,7 @@ import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, X, Image as ImageIcon, Heart, Download, Trash2, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import api from '../../lib/api';
+import * as db from '../../lib/localDB';
 import { useAuthStore } from '../../store/authStore';
 import { timeAgo, getInitials, generateAvatarColor } from '../../lib/utils';
 import type { Photo } from '../../types';
@@ -36,21 +36,15 @@ export function PhotoUploader({ onUpload }: { onUpload: () => void }) {
     if (files.length === 0) return;
     setUploading(true);
     try {
-      const formData = new FormData();
-      files.forEach((f) => formData.append('photos', f));
-      if (caption) formData.append('caption', caption);
-
-      await api.post('/photos/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
+      const user = useAuthStore.getState().user;
+      await db.uploadPhotos(files, caption, user?.id || '');
       toast.success(`${files.length} photo${files.length > 1 ? 's' : ''} uploaded! 📸`);
       setFiles([]);
       setPreview([]);
       setCaption('');
       onUpload();
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Upload failed');
+      toast.error(err.message || 'Upload failed');
     } finally {
       setUploading(false);
     }
@@ -133,7 +127,7 @@ export function PhotoGallery({ photos, onRefresh }: PhotoGalleryProps) {
 
   const toggleLike = async (photoId: string) => {
     try {
-      await api.post(`/photos/${photoId}/like`);
+      db.togglePhotoLike(photoId, user?.id || '');
       onRefresh();
     } catch {
       toast.error('Failed to like photo');
@@ -142,7 +136,7 @@ export function PhotoGallery({ photos, onRefresh }: PhotoGalleryProps) {
 
   const deletePhoto = async (photoId: string) => {
     try {
-      await api.delete(`/photos/${photoId}`);
+      db.deletePhoto(photoId);
       toast.success('Photo deleted');
       onRefresh();
     } catch {
@@ -174,16 +168,18 @@ export function PhotoGallery({ photos, onRefresh }: PhotoGalleryProps) {
     }
   };
 
-  // Download all as ZIP
+  // Download all — download each photo individually (no server ZIP)
   const downloadAll = async () => {
     setDownloading(true);
     try {
-      const res = await api.get('/photos/download-all', { responseType: 'blob' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([res.data], { type: 'application/zip' }));
-      a.download = 'team-outing-photos.zip';
-      a.click();
-      URL.revokeObjectURL(a.href);
+      for (const photo of photos) {
+        const a = document.createElement('a');
+        a.href = photo.url;
+        a.download = `photo_${photo.id}.jpg`;
+        a.click();
+        // Small delay to avoid browser throttling
+        await new Promise((r) => setTimeout(r, 200));
+      }
       toast.success('All photos downloaded!');
     } catch {
       toast.error('Download failed');

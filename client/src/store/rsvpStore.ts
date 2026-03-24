@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import api from '../lib/api';
+import * as db from '../lib/localDB';
 import type { RSVP, RSVPCounts } from '../types';
 
 interface RSVPState {
@@ -15,6 +15,15 @@ interface RSVPState {
   setCounts: (counts: RSVPCounts) => void;
 }
 
+function getCurrentUserId(): string {
+  try {
+    const stored = localStorage.getItem('user');
+    return stored ? JSON.parse(stored).id : '';
+  } catch {
+    return '';
+  }
+}
+
 export const useRsvpStore = create<RSVPState>((set) => ({
   myRsvp: null,
   counts: null,
@@ -22,39 +31,35 @@ export const useRsvpStore = create<RSVPState>((set) => ({
   isLoading: false,
 
   fetchMyRsvp: async () => {
-    try {
-      const { data } = await api.get('/rsvp/mine');
-      set({ myRsvp: data });
-    } catch {
-      set({ myRsvp: null });
-    }
+    const userId = getCurrentUserId();
+    if (!userId) return;
+    const rsvp = db.getMyRsvp(userId);
+    set({ myRsvp: rsvp });
   },
 
   fetchCounts: async () => {
-    try {
-      const { data } = await api.get<RSVPCounts>('/rsvp/counts');
-      set({ counts: data });
-    } catch {}
+    const counts = db.getRsvpCounts();
+    set({ counts });
   },
 
   fetchAllRsvps: async () => {
-    try {
-      set({ isLoading: true });
-      const { data } = await api.get<RSVP[]>('/rsvp/all');
-      set({ allRsvps: data, isLoading: false });
-    } catch {
-      set({ isLoading: false });
-    }
+    set({ isLoading: true });
+    const allRsvps = db.getAllRsvps();
+    set({ allRsvps, isLoading: false });
   },
 
   submitRsvp: async (attending: boolean) => {
-    const { data } = await api.post<RSVP>('/rsvp', { attending });
-    set({ myRsvp: data });
+    const userId = getCurrentUserId();
+    const rsvp = db.submitRsvp(userId, attending);
+    const counts = db.getRsvpCounts();
+    set({ myRsvp: rsvp, counts });
   },
 
   updateRsvp: async (attending: boolean) => {
-    const { data } = await api.put<RSVP>('/rsvp', { attending });
-    set({ myRsvp: data });
+    const userId = getCurrentUserId();
+    const rsvp = db.submitRsvp(userId, attending);
+    const counts = db.getRsvpCounts();
+    set({ myRsvp: rsvp, counts });
   },
 
   setCounts: (counts) => set({ counts }),

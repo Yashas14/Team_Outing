@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import api from '../lib/api';
+import * as db from '../lib/localDB';
 import type { Poll, PollResults } from '../types';
 
 interface PollState {
@@ -12,32 +12,39 @@ interface PollState {
   updatePollResults: (pollId: string, results: PollResults) => void;
 }
 
+function getCurrentUserId(): string {
+  try {
+    const stored = localStorage.getItem('user');
+    return stored ? JSON.parse(stored).id : '';
+  } catch {
+    return '';
+  }
+}
+
 export const usePollStore = create<PollState>((set, get) => ({
   polls: [],
   isLoading: false,
 
   fetchPolls: async () => {
-    try {
-      set({ isLoading: true });
-      const { data } = await api.get<Poll[]>('/polls');
-      set({ polls: data, isLoading: false });
-    } catch {
-      set({ isLoading: false });
-    }
+    set({ isLoading: true });
+    const userId = getCurrentUserId();
+    const polls = db.getPolls(userId);
+    set({ polls, isLoading: false });
   },
 
   vote: async (pollId: string, optionId: string) => {
-    await api.post(`/polls/${pollId}/vote`, { optionId });
+    const userId = getCurrentUserId();
+    db.votePoll(pollId, optionId, userId);
     await get().fetchPolls();
   },
 
   createPoll: async (question: string, options: string[]) => {
-    await api.post('/polls', { question, options });
+    db.createPoll(question, options);
     await get().fetchPolls();
   },
 
   deletePoll: async (pollId: string) => {
-    await api.delete(`/polls/${pollId}`);
+    db.deletePoll(pollId);
     set({ polls: get().polls.filter((p) => p.id !== pollId) });
   },
 

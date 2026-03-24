@@ -7,8 +7,6 @@ import { z } from 'zod';
 import { LogIn, Mail, Lock, Sparkles, PartyPopper, KeyRound, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/authStore';
-import api from '../lib/api';
-import { connectSocket } from '../lib/socket';
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -41,19 +39,13 @@ type SetupForm = z.infer<typeof setupSchema>;
 
 const FLOATING_EMOJIS = ['🎉', '🎊', '🌴', '🎈', '✨', '🎵', '🍕', '🌟', '🎸', '🎯'];
 
-function saveSession(data: { accessToken: string; refreshToken: string; user: any }) {
-  localStorage.setItem('accessToken', data.accessToken);
-  localStorage.setItem('refreshToken', data.refreshToken);
-  localStorage.setItem('user', JSON.stringify(data.user));
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function LoginPage() {
   const [step, setStep] = useState<'login' | 'setup'>('login');
   const [pendingEmail, setPendingEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { loadUser, isAuthenticated, user } = useAuthStore();
+  const { loadUser, isAuthenticated, user, login, setupNewPassword } = useAuthStore();
   const navigate = useNavigate();
 
   // ── Login form ──────────────────────────────────────────────────────────────
@@ -87,12 +79,9 @@ export default function LoginPage() {
   const onLogin = async (data: LoginForm) => {
     setIsLoading(true);
     try {
-      const res = await api.post('/auth/login', {
-        email: data.email.toLowerCase(),
-        password: data.password,
-      });
+      const result = await login(data.email.toLowerCase(), data.password);
 
-      if (res.data.requiresPasswordSetup) {
+      if (result.requiresPasswordSetup) {
         // First-time employee — move to password-creation step
         setPendingEmail(data.email.toLowerCase());
         setStep('setup');
@@ -100,13 +89,11 @@ export default function LoginPage() {
         return;
       }
 
-      // Normal login — save session and load user into store
-      saveSession(res.data);
-      connectSocket(res.data.user.role);
+      // Normal login — user is already loaded into store
       loadUser();
       toast.success('Welcome back! 🎉');
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Login failed. Please try again.');
+      toast.error(err.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -116,17 +103,11 @@ export default function LoginPage() {
   const onSetup = async (data: SetupForm) => {
     setIsLoading(true);
     try {
-      const res = await api.post('/auth/setup-password', {
-        email: pendingEmail,
-        password: data.password,
-      });
-
-      saveSession(res.data);
-      connectSocket(res.data.user.role);
+      await setupNewPassword(pendingEmail, data.password);
       loadUser();
       toast.success('Password created! You\'re all set 🎊');
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Setup failed. Please try again.');
+      toast.error(err.message || 'Setup failed. Please try again.');
     } finally {
       setIsLoading(false);
     }

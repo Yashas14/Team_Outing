@@ -14,7 +14,7 @@ export default function PollWidget({ poll }: { poll: Poll }) {
       await vote(poll.id, optionId);
       toast.success('Vote recorded! 🗳️');
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to vote');
+      toast.error(err.message || 'Failed to vote');
     }
   };
 

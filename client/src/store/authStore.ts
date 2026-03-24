@@ -1,13 +1,14 @@
 import { create } from 'zustand';
-import api from '../lib/api';
+import { authenticateUser, setupPassword, getUserById, initDB } from '../lib/localDB';
 import { connectSocket, disconnectSocket } from '../lib/socket';
-import type { User, LoginResponse } from '../types';
+import type { User } from '../types';
 
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ requiresPasswordSetup?: boolean }>;
+  setupNewPassword: (email: string, password: string) => Promise<void>;
   logout: () => void;
   loadUser: () => void;
   refreshUser: () => Promise<void>;
@@ -19,35 +20,50 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
 
   login: async (email: string, password: string) => {
-    const { data } = await api.post<LoginResponse>('/auth/login', { email, password });
-    localStorage.setItem('accessToken', data.accessToken);
-    localStorage.setItem('refreshToken', data.refreshToken);
-    localStorage.setItem('user', JSON.stringify(data.user));
+    initDB();
+    const result = authenticateUser(email, password);
+    if (!result) throw new Error('Invalid email or password');
 
-    set({ user: data.user, isAuthenticated: true });
-    connectSocket(data.user.role);
+    if (result.requiresPasswordSetup) {
+      return { requiresPasswordSetup: true };
+    }
+
+    localStorage.setItem('user', JSON.stringify(result.user));
+    set({ user: result.user, isAuthenticated: true });
+    connectSocket(result.user.role);
+    return {};
+  },
+
+  setupNewPassword: async (email: string, password: string) => {
+    const user = setupPassword(email, password);
+    if (!user) throw new Error('User not found');
+
+    localStorage.setItem('user', JSON.stringify(user));
+    set({ user, isAuthenticated: true });
+    connectSocket(user.role);
   },
 
   logout: () => {
-    api.post('/auth/logout').catch(() => {});
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     disconnectSocket();
     set({ user: null, isAuthenticated: false });
   },
 
   loadUser: () => {
+    initDB();
     try {
       const stored = localStorage.getItem('user');
-      const token = localStorage.getItem('accessToken');
-      if (stored && token) {
+      if (stored) {
         const user = JSON.parse(stored) as User;
-        set({ user, isAuthenticated: true, isLoading: false });
-        connectSocket(user.role);
-      } else {
-        set({ isLoading: false });
+        // Verify user still exists in DB
+        const fresh = getUserById(user.id);
+        if (fresh) {
+          set({ user: fresh, isAuthenticated: true, isLoading: false });
+          connectSocket(fresh.role);
+          return;
+        }
       }
+      set({ isLoading: false });
     } catch {
       set({ isLoading: false });
     }
@@ -55,9 +71,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   refreshUser: async () => {
     try {
-      const { data } = await api.get<User>('/auth/me');
-      localStorage.setItem('user', JSON.stringify(data));
-      set({ user: data });
+      const currentUser = get().user;
+      if (!currentUser) return;
+      const fresh = getUserById(currentUser.id);
+      if (fresh) {
+        localStorage.setItem('user', JSON.stringify(fresh));
+        set({ user: fresh });
+      } else {
+        get().logout();
+      }
     } catch {
       get().logout();
     }
