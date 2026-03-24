@@ -130,6 +130,11 @@ async function main() {
   console.log('─────────────────────────────────────────────────');
 }
 
-main()
-  .catch((e) => { console.error(e); process.exit(1); })
-  .finally(() => prisma.$disconnect());
+export { main };
+
+// Only auto-run when executed directly (not when imported)
+if (require.main === module) {
+  main()
+    .catch((e) => { console.error(e); process.exit(1); })
+    .finally(() => prisma.$disconnect());
+}

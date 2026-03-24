@@ -69,6 +69,21 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// One-time seed endpoint — protected by secret key
+app.get('/api/seed', async (req, res) => {
+  const secret = req.query.secret;
+  if (secret !== (process.env.SEED_SECRET || 'seed-team-outing-2026')) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  try {
+    const { main } = await import('./prisma/seed');
+    await main();
+    res.json({ success: true, message: 'Database seeded successfully!' });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Socket.IO
 setupSocketHandlers(io);
 
