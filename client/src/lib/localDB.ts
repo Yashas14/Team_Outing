@@ -255,7 +255,7 @@ export function deletePoll(pollId: string): void {
 }
 
 // ── Photos ────────────────────────────────────────────────────────────────────
-export function getPhotos(limit = 50): { photos: Photo[] } {
+export function getPhotos(limit = 1000): { photos: Photo[] } {
   const photos = getItem<Photo[]>(KEYS.PHOTOS, []);
   return {
     photos: photos.slice(0, limit).sort(

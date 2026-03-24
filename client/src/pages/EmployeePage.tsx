@@ -40,7 +40,7 @@ export default function EmployeePage() {
 
   const fetchPhotos = async () => {
     try {
-      const { photos: p } = db.getPhotos(50);
+      const { photos: p } = db.getPhotos(1000);
       setPhotos(p);
       const lb = db.getLeaderboard();
       setLeaderboard(lb);

@@ -76,7 +76,7 @@ export default function AdminPage() {
 
   const fetchPhotos = async () => {
     try {
-      const { photos: p } = db.getPhotos(100);
+      const { photos: p } = db.getPhotos(1000);
       setPhotos(p);
     } catch {}
   };
