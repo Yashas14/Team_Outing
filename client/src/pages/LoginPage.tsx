@@ -89,9 +89,10 @@ export default function LoginPage() {
         return;
       }
 
-      // Normal login — user is already loaded into store
-      loadUser();
+      // Navigate directly — don't rely solely on useEffect
       toast.success('Welcome back! 🎉');
+      const role = result.user?.role;
+      navigate(role === 'ADMIN' ? '/admin' : '/employee', { replace: true });
     } catch (err: any) {
       toast.error(err.message || 'Login failed. Please try again.');
     } finally {
@@ -104,8 +105,8 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await setupNewPassword(pendingEmail, data.password);
-      loadUser();
       toast.success('Password created! You\'re all set 🎊');
+      navigate('/employee', { replace: true });
     } catch (err: any) {
       toast.error(err.message || 'Setup failed. Please try again.');
     } finally {

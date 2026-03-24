@@ -7,7 +7,7 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<{ requiresPasswordSetup?: boolean }>;
+  login: (email: string, password: string) => Promise<{ requiresPasswordSetup?: boolean; user?: User }>;
   setupNewPassword: (email: string, password: string) => Promise<void>;
   logout: () => void;
   loadUser: () => void;
@@ -22,16 +22,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (email: string, password: string) => {
     initDB();
     const result = authenticateUser(email, password);
-    if (!result) throw new Error('Invalid email or password');
+    if (!result) throw new Error('Invalid email or password. Check your credentials and try again.');
 
     if (result.requiresPasswordSetup) {
       return { requiresPasswordSetup: true };
     }
 
     localStorage.setItem('user', JSON.stringify(result.user));
-    set({ user: result.user, isAuthenticated: true });
+    set({ user: result.user, isAuthenticated: true, isLoading: false });
     connectSocket(result.user.role);
-    return {};
+    return { user: result.user };
   },
 
   setupNewPassword: async (email: string, password: string) => {

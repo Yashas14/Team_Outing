@@ -11,7 +11,7 @@ import type {
 } from '../types';
 
 // Bump this version whenever seed data changes to force a re-seed
-const DB_VERSION = '3';
+const DB_VERSION = '4';
 
 // ── Storage Keys ──────────────────────────────────────────────────────────────
 const KEYS = {
