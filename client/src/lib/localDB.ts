@@ -3,6 +3,7 @@
  * All data is persisted in the browser's localStorage.
  * On first load, seed data is automatically populated.
  */
+import bcrypt from 'bcryptjs';
 
 import { seedDatabase } from './seedData';
 import type {
@@ -11,7 +12,7 @@ import type {
 } from '../types';
 
 // Bump this version whenever seed data changes to force a re-seed
-const DB_VERSION = '4';
+const DB_VERSION = '5';
 
 // ── Storage Keys ──────────────────────────────────────────────────────────────
 const KEYS = {
@@ -71,8 +72,8 @@ export function authenticateUser(email: string, password: string): { user: User;
   // Blank password submitted → wrong password
   if (!password) return null;
 
-  // Plain string comparison
-  if (found.password !== password) return null;
+  // Bcrypt comparison — password in localStorage is a hash, never plain text
+  if (!bcrypt.compareSync(password, found.password)) return null;
 
   return { user: sanitizeUser(found), requiresPasswordSetup: false };
 }
@@ -87,7 +88,7 @@ export function setupPassword(email: string, password: string): User | null {
     throw new Error('Password already set. Please log in normally.');
   }
 
-  users[idx].password = password;
+  users[idx].password = bcrypt.hashSync(password, 10); // hash before storing
   setItem(KEYS.USERS, users);
   return sanitizeUser(users[idx]);
 }

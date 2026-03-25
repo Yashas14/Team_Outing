@@ -41,31 +41,7 @@ async function main() {
   }
 
   // ─── Employee accounts (no password — must be set on first login) ─────────
-  const employees = [
-    { email: 'john.smith@siemens.com',    name: 'John Smith'    },
-    { email: 'jane.doe@siemens.com',      name: 'Jane Doe'      },
-    { email: 'bob.wilson@siemens.com',    name: 'Bob Wilson'    },
-    { email: 'alice.johnson@siemens.com', name: 'Alice Johnson' },
-    { email: 'charlie.brown@siemens.com', name: 'Charlie Brown' },
-    { email: 'diana.prince@siemens.com',  name: 'Diana Prince'  },
-    { email: 'evan.davis@siemens.com',    name: 'Evan Davis'    },
-    { email: 'fiona.green@siemens.com',   name: 'Fiona Green'   },
-    { email: 'george.miller@siemens.com', name: 'George Miller' },
-    { email: 'hannah.white@siemens.com',  name: 'Hannah White'  },
-  ];
-
-  for (const emp of employees) {
-    await prisma.user.create({
-      data: {
-        email: emp.email.toLowerCase(),
-        name: emp.name,
-        passwordHash: null,   // <── no password;  set on first login
-        role: 'EMPLOYEE',
-
-      },
-    });
-    console.log(`✅ Employee created (no password): ${emp.email}`);
-  }
+  // Employees are invited by admins via the portal; none are pre-seeded.
 
   // ─── Event config ──────────────────────────────────────────────────────────
   await prisma.eventConfig.upsert({
@@ -125,8 +101,7 @@ async function main() {
   console.log('  d.yashas@siemens.com');
   console.log('  nagarjuna.kn@siemens.com');
   console.log('─────────────────────────────────────────────────');
-  console.log('EMPLOYEE logins → must SET password on first login');
-  console.log('  e.g.  john.smith@siemens.com');
+  console.log('EMPLOYEES → invited by admin via the portal');
   console.log('─────────────────────────────────────────────────');
 }
 
