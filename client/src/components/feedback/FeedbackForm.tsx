@@ -51,7 +51,7 @@ export function FeedbackForm({ onSubmit }: { onSubmit: () => void }) {
     setIsSubmitting(true);
     try {
       const user = useAuthStore.getState().user;
-      db.submitFeedback(data, user?.id || '');
+      await db.submitFeedback(data, user?.id || '');
       toast.success('Feedback submitted! Thank you! 🙏');
       reset();
       setRating(0);

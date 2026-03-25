@@ -1,515 +1,303 @@
-/**
- * LocalDB — A localStorage-powered database layer that replaces the backend.
- * All data is persisted in the browser's localStorage.
- * On first load, seed data is automatically populated.
+﻿/**
+ * SupabaseDB — replaces the localStorage layer.
+ * All data is now persisted in Supabase and syncs across every browser/device.
+ * Same function names as before — now every function returns a Promise.
  */
 import bcrypt from 'bcryptjs';
-
-import { seedDatabase } from './seedData';
+import { supabase } from './supabase';
 import type {
   User, RSVP, RSVPCounts, Poll, Photo,
   Message, Feedback, EventConfig, AdminStats, ActivityLog, Leaderboard,
 } from '../types';
 
-// Bump this version whenever seed data changes to force a re-seed
-const DB_VERSION = '5';
-
-// ── Storage Keys ──────────────────────────────────────────────────────────────
-const KEYS = {
-  INITIALIZED: 'db_initialized',
-  VERSION: 'db_version',
-  USERS: 'db_users',
-  RSVPS: 'db_rsvps',
-  POLLS: 'db_polls',
-  PHOTOS: 'db_photos',
-  MESSAGES: 'db_messages',
-  FEEDBACKS: 'db_feedbacks',
-  EVENT_CONFIG: 'db_event_config',
-  ACTIVITY_LOG: 'db_activity_log',
-} as const;
-
-// ── Generic helpers ───────────────────────────────────────────────────────────
-function getItem<T>(key: string, fallback: T): T {
+// ── Seed / Initialize ─────────────────────────────────────────────────────────
+export async function initDB(): Promise<void> {
   try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-}
+    const { data } = await supabase.from('users').select('id').eq('role', 'ADMIN').limit(1);
+    if (data && data.length > 0) return; // already seeded
 
-function setItem<T>(key: string, value: T): void {
-  localStorage.setItem(key, JSON.stringify(value));
-}
-
-function uuid(): string {
-  return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-}
-
-// ── Initialize DB ─────────────────────────────────────────────────────────────
-export function initDB(): void {
-  const currentVersion = localStorage.getItem(KEYS.VERSION);
-  if (!localStorage.getItem(KEYS.INITIALIZED) || currentVersion !== DB_VERSION) {
-    // Clear all old DB keys before re-seeding
-    Object.values(KEYS).forEach((key) => localStorage.removeItem(key));
-    seedDatabase();
-    localStorage.setItem(KEYS.INITIALIZED, 'true');
-    localStorage.setItem(KEYS.VERSION, DB_VERSION);
-  }
+    const hash = bcrypt.hashSync('failsafe@123', 10);
+    await supabase.from('users').upsert([
+      { id: 'usr-admin-1', email: 'ashutosh.choudhary@siemens.com', name: 'Ashutosh Choudhary', role: 'ADMIN', password_hash: hash },
+      { id: 'usr-admin-2', email: 'd.yashas@siemens.com',           name: 'Yashas D',           role: 'ADMIN', password_hash: hash },
+      { id: 'usr-admin-3', email: 'nagarjuna.kn@siemens.com',       name: 'Nagarjuna KN',       role: 'ADMIN', password_hash: hash },
+    ]);
+    await supabase.from('event_config').upsert({
+      id: 'default-config',
+      outing_date: '2026-04-01T09:00:00.000Z',
+      venue_name: 'Sunset Beach Resort',
+      venue_address: '123 Ocean Drive, Crystal Bay, CA 90210',
+      description: 'Join us for an amazing day of fun, food, and team bonding! Beach games, BBQ lunch, team challenges, and sunset dinner await. This is going to be the best team outing yet!',
+    });
+    const pollSeeds = [
+      { id: 'poll-1', question: 'What activity are you most excited about?', options: [{ id: 'opt-1a', text: '🏖️ Beach Volleyball' }, { id: 'opt-1b', text: '🎨 Team Art Workshop' }, { id: 'opt-1c', text: '🎮 Gaming Tournament' }, { id: 'opt-1d', text: '🧘 Yoga & Wellness' }, { id: 'opt-1e', text: '🍳 Cooking Challenge' }] },
+      { id: 'poll-2', question: 'What cuisine should we have for lunch?', options: [{ id: 'opt-2a', text: '🍔 BBQ & Grill' }, { id: 'opt-2b', text: '🍕 Italian' }, { id: 'opt-2c', text: '🍣 Japanese' }, { id: 'opt-2d', text: '🌮 Mexican' }, { id: 'opt-2e', text: '🥗 Healthy/Vegan' }] },
+    ];
+    for (const p of pollSeeds) {
+      await supabase.from('polls').upsert({ id: p.id, question: p.question, is_active: true });
+      await supabase.from('poll_options').upsert(p.options.map((o) => ({ id: o.id, poll_id: p.id, text: o.text, vote_count: 0 })));
+    }
+  } catch (e) { console.error('initDB error:', e); }
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
-export function authenticateUser(email: string, password: string): { user: User; requiresPasswordSetup: boolean } | null {
-  const users = getItem<(User & { password?: string })[]>(KEYS.USERS, []);
-  const found = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+export async function authenticateUser(email: string, password: string): Promise<{ user: User; requiresPasswordSetup: boolean } | null> {
+  const { data } = await supabase.from('users').select('*').eq('email', email.toLowerCase()).limit(1);
+  const found = data?.[0];
   if (!found) return null;
-
-  // No password set → first-time employee setup
-  if (!found.password) {
-    return { user: sanitizeUser(found), requiresPasswordSetup: true };
-  }
-
-  // Blank password submitted → wrong password
+  if (!found.password_hash) return { user: mapUser(found), requiresPasswordSetup: true };
   if (!password) return null;
-
-  // Bcrypt comparison — password in localStorage is a hash, never plain text
-  if (!bcrypt.compareSync(password, found.password)) return null;
-
-  return { user: sanitizeUser(found), requiresPasswordSetup: false };
+  if (!bcrypt.compareSync(password, found.password_hash)) return null;
+  return { user: mapUser(found), requiresPasswordSetup: false };
 }
 
-export function setupPassword(email: string, password: string): User | null {
-  const users = getItem<(User & { password?: string })[]>(KEYS.USERS, []);
-  const idx = users.findIndex((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (idx === -1) return null;
-
-  // Matches backend: if password already set, reject
-  if (users[idx].password) {
-    throw new Error('Password already set. Please log in normally.');
-  }
-
-  users[idx].password = bcrypt.hashSync(password, 10); // hash before storing
-  setItem(KEYS.USERS, users);
-  return sanitizeUser(users[idx]);
+export async function setupPassword(email: string, password: string): Promise<User | null> {
+  const { data } = await supabase.from('users').select('*').eq('email', email.toLowerCase()).limit(1);
+  const found = data?.[0];
+  if (!found) return null;
+  if (found.password_hash) throw new Error('Password already set. Please log in normally.');
+  const hash = bcrypt.hashSync(password, 10);
+  const { data: updated } = await supabase.from('users').update({ password_hash: hash }).eq('id', found.id).select().single();
+  return updated ? mapUser(updated) : null;
 }
 
-export function getUserById(id: string): User | null {
-  const users = getItem<(User & { password?: string })[]>(KEYS.USERS, []);
-  const found = users.find((u) => u.id === id);
-  return found ? sanitizeUser(found) : null;
+export async function getUserById(id: string): Promise<User | null> {
+  const { data } = await supabase.from('users').select('*').eq('id', id).single();
+  return data ? mapUser(data) : null;
 }
 
-function sanitizeUser(u: User & { password?: string }): User {
-  const { password, ...rest } = u as any;
-  return rest;
+export async function inviteUser(email: string, name: string): Promise<User> {
+  const { data: existing } = await supabase.from('users').select('id').eq('email', email.toLowerCase()).limit(1);
+  if (existing && existing.length > 0) throw new Error('User already exists');
+  const id = crypto.randomUUID();
+  const { data, error } = await supabase.from('users').insert({ id, email: email.toLowerCase(), name, role: 'EMPLOYEE' }).select().single();
+  if (error) throw new Error(error.message);
+  await addActivityLog(undefined, 'USER_INVITED', `${name} (${email}) was invited`);
+  return mapUser(data);
 }
 
-export function inviteUser(email: string, name: string): User {
-  const users = getItem<(User & { password?: string })[]>(KEYS.USERS, []);
-  const existing = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (existing) throw new Error('User already exists');
-
-  const newUser: User & { password?: string } = {
-    id: uuid(),
-    email: email.toLowerCase(),
-    name,
-    role: 'EMPLOYEE',
-    createdAt: new Date().toISOString(),
-  };
-  users.push(newUser);
-  setItem(KEYS.USERS, users);
-  addActivityLog(undefined, 'USER_INVITED', `${name} (${email}) was invited`);
-  return sanitizeUser(newUser);
+function mapUser(row: any): User {
+  return { id: row.id, email: row.email, name: row.name, role: row.role, avatar: row.avatar || undefined, createdAt: row.created_at };
 }
 
 // ── RSVP ──────────────────────────────────────────────────────────────────────
-export function getMyRsvp(userId: string): RSVP | null {
-  const rsvps = getItem<RSVP[]>(KEYS.RSVPS, []);
-  return rsvps.find((r) => r.userId === userId) || null;
+export async function getMyRsvp(userId: string): Promise<RSVP | null> {
+  const { data } = await supabase.from('rsvps').select('*, users(id, name, email)').eq('user_id', userId).maybeSingle();
+  return data ? mapRsvp(data) : null;
 }
 
-export function submitRsvp(userId: string, attending: boolean): RSVP {
-  const rsvps = getItem<RSVP[]>(KEYS.RSVPS, []);
-  const existing = rsvps.find((r) => r.userId === userId);
-  const user = getUserById(userId);
-
+export async function submitRsvp(userId: string, attending: boolean): Promise<RSVP> {
+  const user = await getUserById(userId);
+  const { data: existing } = await supabase.from('rsvps').select('id').eq('user_id', userId).maybeSingle();
   if (existing) {
-    existing.attending = attending;
-    existing.updatedAt = new Date().toISOString();
-    setItem(KEYS.RSVPS, rsvps);
-    addActivityLog(userId, 'RSVP_UPDATED', `${user?.name || 'User'} changed RSVP to ${attending ? 'Yes' : 'No'}`);
-    return existing;
+    const { data } = await supabase.from('rsvps').update({ attending, updated_at: new Date().toISOString() }).eq('user_id', userId).select('*, users(id, name, email)').single();
+    await addActivityLog(userId, 'RSVP_UPDATED', `${user?.name} changed RSVP to ${attending ? 'Yes' : 'No'}`);
+    return mapRsvp(data);
   }
-
-  const rsvp: RSVP = {
-    id: uuid(),
-    userId,
-    attending,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    user: user ? { id: user.id, name: user.name, email: user.email } : undefined,
-  };
-  rsvps.push(rsvp);
-  setItem(KEYS.RSVPS, rsvps);
-  addActivityLog(userId, 'RSVP_SUBMITTED', `${user?.name || 'User'} RSVP'd ${attending ? 'Yes' : 'No'}`);
-  return rsvp;
+  const { data } = await supabase.from('rsvps').insert({ id: crypto.randomUUID(), user_id: userId, attending }).select('*, users(id, name, email)').single();
+  await addActivityLog(userId, 'RSVP_SUBMITTED', `${user?.name} RSVP'd ${attending ? 'Yes' : 'No'}`);
+  return mapRsvp(data);
 }
 
-export function getRsvpCounts(): RSVPCounts {
-  const rsvps = getItem<RSVP[]>(KEYS.RSVPS, []);
-  const users = getItem<User[]>(KEYS.USERS, []);
-  const employees = users.filter((u) => u.role === 'EMPLOYEE');
-  const attending = rsvps.filter((r) => r.attending).length;
-  const notAttending = rsvps.filter((r) => !r.attending).length;
-  const total = employees.length;
-  return {
-    attending,
-    notAttending,
-    total,
-    pending: total - attending - notAttending,
-  };
+export async function getRsvpCounts(): Promise<RSVPCounts> {
+  const [{ data: rsvps }, { data: employees }] = await Promise.all([supabase.from('rsvps').select('attending'), supabase.from('users').select('id').eq('role', 'EMPLOYEE')]);
+  const total = employees?.length || 0;
+  const attending = rsvps?.filter((r) => r.attending).length || 0;
+  const notAttending = rsvps?.filter((r) => !r.attending).length || 0;
+  return { attending, notAttending, total, pending: total - attending - notAttending };
 }
 
-export function getAllRsvps(): RSVP[] {
-  const rsvps = getItem<RSVP[]>(KEYS.RSVPS, []);
-  const users = getItem<User[]>(KEYS.USERS, []);
+export async function getAllRsvps(): Promise<RSVP[]> {
+  const { data } = await supabase.from('rsvps').select('*, users(id, name, email)').order('created_at', { ascending: false });
+  return (data || []).map(mapRsvp);
+}
 
-  return rsvps.map((r) => {
-    const user = users.find((u) => u.id === r.userId);
-    return {
-      ...r,
-      user: user ? { id: user.id, name: user.name, email: user.email } : r.user,
-    };
-  });
+function mapRsvp(row: any): RSVP {
+  return { id: row.id, userId: row.user_id, attending: row.attending, createdAt: row.created_at, updatedAt: row.updated_at, user: row.users ? { id: row.users.id, name: row.users.name, email: row.users.email } : undefined };
 }
 
 // ── Polls ─────────────────────────────────────────────────────────────────────
-export function getPolls(userId: string): Poll[] {
-  const polls = getItem<(Poll & { votes?: Record<string, string> })[]>(KEYS.POLLS, []);
-  return polls
-    .filter((p) => p.isActive)
-    .map((p) => ({
-      ...p,
-      userVote: p.votes?.[userId] || null,
-      options: p.options.map((o) => ({
-        ...o,
-        percentage: p.options.reduce((s, x) => s + x.voteCount, 0) > 0
-          ? Math.round((o.voteCount / p.options.reduce((s, x) => s + x.voteCount, 0)) * 100)
-          : 0,
-      })),
-    }));
+export async function getPolls(userId: string): Promise<Poll[]> {
+  const [{ data: polls }, { data: votes }] = await Promise.all([
+    supabase.from('polls').select('*, poll_options(*)').eq('is_active', true).order('created_at'),
+    supabase.from('poll_votes').select('poll_id, option_id').eq('user_id', userId),
+  ]);
+  const userVoteMap: Record<string, string> = {};
+  votes?.forEach((v) => { userVoteMap[v.poll_id] = v.option_id; });
+  return (polls || []).map((p) => {
+    const totalVotes = p.poll_options.reduce((s: number, o: any) => s + o.vote_count, 0);
+    return {
+      id: p.id, question: p.question, isActive: p.is_active, createdAt: p.created_at,
+      userVote: userVoteMap[p.id] || null,
+      options: (p.poll_options as any[]).map((o) => ({ id: o.id, text: o.text, voteCount: o.vote_count, percentage: totalVotes > 0 ? Math.round((o.vote_count / totalVotes) * 100) : 0 })),
+    };
+  });
 }
 
-export function votePoll(pollId: string, optionId: string, userId: string): void {
-  const polls = getItem<(Poll & { votes?: Record<string, string> })[]>(KEYS.POLLS, []);
-  const poll = polls.find((p) => p.id === pollId);
-  if (!poll) throw new Error('Poll not found');
-
-  if (!poll.votes) poll.votes = {};
-  const previousVote = poll.votes[userId];
-
-  // If user already voted for same option, do nothing
-  if (previousVote === optionId) return;
-
-  // Remove previous vote count
-  if (previousVote) {
-    const prevOpt = poll.options.find((o) => o.id === previousVote);
-    if (prevOpt) prevOpt.voteCount = Math.max(0, prevOpt.voteCount - 1);
+export async function votePoll(pollId: string, optionId: string, userId: string): Promise<void> {
+  const { data: prev } = await supabase.from('poll_votes').select('option_id').eq('poll_id', pollId).eq('user_id', userId).maybeSingle();
+  if (prev?.option_id === optionId) return;
+  if (prev?.option_id) {
+    await supabase.rpc('decrement_vote', { option_id_param: prev.option_id });
+    await supabase.from('poll_votes').delete().eq('poll_id', pollId).eq('user_id', userId);
   }
-
-  // Add new vote
-  const opt = poll.options.find((o) => o.id === optionId);
-  if (!opt) throw new Error('Option not found');
-  opt.voteCount += 1;
-  poll.votes[userId] = optionId;
-
-  setItem(KEYS.POLLS, polls);
+  await supabase.rpc('increment_vote', { option_id_param: optionId });
+  await supabase.from('poll_votes').upsert({ id: crypto.randomUUID(), poll_id: pollId, option_id: optionId, user_id: userId });
 }
 
-export function createPoll(question: string, options: string[]): Poll {
-  const polls = getItem<(Poll & { votes?: Record<string, string> })[]>(KEYS.POLLS, []);
-  const newPoll: Poll & { votes: Record<string, string> } = {
-    id: uuid(),
-    question,
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    userVote: null,
-    votes: {},
-    options: options.map((text) => ({
-      id: uuid(),
-      text,
-      voteCount: 0,
-      percentage: 0,
-    })),
-  };
-  polls.push(newPoll);
-  setItem(KEYS.POLLS, polls);
-  addActivityLog(undefined, 'POLL_CREATED', `New poll: "${question}"`);
-  return newPoll;
+export async function createPoll(question: string, options: string[]): Promise<Poll> {
+  const pollId = crypto.randomUUID();
+  const { data: poll } = await supabase.from('polls').insert({ id: pollId, question, is_active: true }).select().single();
+  const opts = options.map((text) => ({ id: crypto.randomUUID(), poll_id: pollId, text, vote_count: 0 }));
+  await supabase.from('poll_options').insert(opts);
+  await addActivityLog(undefined, 'POLL_CREATED', `New poll: "${question}"`);
+  return { id: poll.id, question: poll.question, isActive: poll.is_active, createdAt: poll.created_at, userVote: null, options: opts.map((o) => ({ id: o.id, text: o.text, voteCount: 0, percentage: 0 })) };
 }
 
-export function deletePoll(pollId: string): void {
-  const polls = getItem<any[]>(KEYS.POLLS, []);
-  setItem(KEYS.POLLS, polls.filter((p) => p.id !== pollId));
+export async function deletePoll(pollId: string): Promise<void> {
+  await supabase.from('polls').delete().eq('id', pollId);
 }
 
 // ── Photos ────────────────────────────────────────────────────────────────────
-export function getPhotos(limit = 1000): { photos: Photo[] } {
-  const photos = getItem<Photo[]>(KEYS.PHOTOS, []);
-  return {
-    photos: photos.slice(0, limit).sort(
-      (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-    ),
-  };
+export async function getPhotos(limit = 1000): Promise<{ photos: Photo[] }> {
+  const { data: rows } = await supabase.from('photos').select('*, users(id, name, avatar)').order('uploaded_at', { ascending: false }).limit(limit);
+  if (!rows) return { photos: [] };
+  const photoIds = rows.map((r) => r.id);
+  const { data: likes } = photoIds.length ? await supabase.from('photo_likes').select('photo_id, user_id').in('photo_id', photoIds) : { data: [] };
+  const likeMap: Record<string, string[]> = {};
+  likes?.forEach((l) => { if (!likeMap[l.photo_id]) likeMap[l.photo_id] = []; likeMap[l.photo_id].push(l.user_id); });
+  return { photos: rows.map((r) => ({ id: r.id, url: r.url, thumbnailUrl: r.thumbnail_url || r.url, caption: r.caption || undefined, likes: r.likes, likedBy: likeMap[r.id] || [], uploadedAt: r.uploaded_at, uploaderId: r.uploader_id, uploader: r.users ? { id: r.users.id, name: r.users.name, avatar: r.users.avatar } : { id: r.uploader_id, name: 'Unknown' } })) };
 }
 
-export async function uploadPhotos(
-  files: File[],
-  caption: string,
-  userId: string
-): Promise<void> {
-  const photos = getItem<Photo[]>(KEYS.PHOTOS, []);
-  const user = getUserById(userId);
-
+export async function uploadPhotos(files: File[], caption: string, userId: string): Promise<void> {
+  const user = await getUserById(userId);
   for (const file of files) {
-    const dataUrl = await readFileAsDataURL(file);
-    // Create a thumbnail (smaller version)
-    const thumbnail = await createThumbnail(dataUrl, 400);
-
-    const photo: Photo = {
-      id: uuid(),
-      url: dataUrl,
-      thumbnailUrl: thumbnail,
-      caption: caption || undefined,
-      likes: 0,
-      likedBy: [],
-      uploadedAt: new Date().toISOString(),
-      uploaderId: userId,
-      uploader: user
-        ? { id: user.id, name: user.name, avatar: user.avatar }
-        : { id: userId, name: 'Unknown' },
-    };
-    photos.unshift(photo);
+    const ext = file.name.split('.').pop() || 'jpg';
+    const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+    const { data: stored, error } = await supabase.storage.from('photos').upload(path, file, { upsert: false });
+    if (error) throw new Error(error.message);
+    const { data: { publicUrl } } = supabase.storage.from('photos').getPublicUrl(stored.path);
+    const thumbBlob = await createThumbnailBlob(file, 400);
+    const thumbPath = `${userId}/thumb_${crypto.randomUUID()}.jpg`;
+    const { data: storedThumb } = await supabase.storage.from('photos').upload(thumbPath, thumbBlob, { upsert: false, contentType: 'image/jpeg' });
+    const thumbUrl = storedThumb ? supabase.storage.from('photos').getPublicUrl(storedThumb.path).data.publicUrl : publicUrl;
+    await supabase.from('photos').insert({ id: crypto.randomUUID(), url: publicUrl, thumbnail_url: thumbUrl, caption: caption || null, likes: 0, uploader_id: userId });
   }
-
-  setItem(KEYS.PHOTOS, photos);
-  addActivityLog(userId, 'PHOTO_UPLOADED', `${user?.name || 'User'} uploaded ${files.length} photo(s)`);
+  await addActivityLog(userId, 'PHOTO_UPLOADED', `${user?.name || 'User'} uploaded ${files.length} photo(s)`);
 }
 
-export function togglePhotoLike(photoId: string, userId: string): void {
-  const photos = getItem<Photo[]>(KEYS.PHOTOS, []);
-  const photo = photos.find((p) => p.id === photoId);
-  if (!photo) return;
-
-  if (!photo.likedBy) photo.likedBy = [];
-  const idx = photo.likedBy.indexOf(userId);
-  if (idx === -1) {
-    photo.likedBy.push(userId);
-    photo.likes += 1;
+export async function togglePhotoLike(photoId: string, userId: string): Promise<void> {
+  const { data: existing } = await supabase.from('photo_likes').select('photo_id').eq('photo_id', photoId).eq('user_id', userId).maybeSingle();
+  const { data: photo } = await supabase.from('photos').select('likes').eq('id', photoId).single();
+  if (existing) {
+    await supabase.from('photo_likes').delete().eq('photo_id', photoId).eq('user_id', userId);
+    await supabase.from('photos').update({ likes: Math.max(0, (photo?.likes || 1) - 1) }).eq('id', photoId);
   } else {
-    photo.likedBy.splice(idx, 1);
-    photo.likes = Math.max(0, photo.likes - 1);
+    await supabase.from('photo_likes').insert({ photo_id: photoId, user_id: userId });
+    await supabase.from('photos').update({ likes: (photo?.likes || 0) + 1 }).eq('id', photoId);
   }
-  setItem(KEYS.PHOTOS, photos);
 }
 
-export function deletePhoto(photoId: string): void {
-  const photos = getItem<Photo[]>(KEYS.PHOTOS, []);
-  setItem(KEYS.PHOTOS, photos.filter((p) => p.id !== photoId));
+export async function deletePhoto(photoId: string): Promise<void> {
+  await supabase.from('photos').delete().eq('id', photoId);
 }
 
-export function getLeaderboard(): Leaderboard {
-  const photos = getItem<Photo[]>(KEYS.PHOTOS, []);
-  const users = getItem<User[]>(KEYS.USERS, []);
-
-  // Most uploads
-  const uploadCounts = new Map<string, number>();
-  photos.forEach((p) => {
-    uploadCounts.set(p.uploaderId, (uploadCounts.get(p.uploaderId) || 0) + 1);
-  });
-
-  const mostUploads = Array.from(uploadCounts.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([uid, count]) => {
-      const u = users.find((x) => x.id === uid);
-      return { user: { id: uid, name: u?.name || 'Unknown', avatar: u?.avatar }, count };
-    });
-
-  // Most liked
-  const mostLiked = [...photos].sort((a, b) => b.likes - a.likes).slice(0, 5);
-
+export async function getLeaderboard(): Promise<Leaderboard> {
+  const [{ data: photos }, { data: topLiked }] = await Promise.all([supabase.from('photos').select('uploader_id, users(id, name, avatar)'), supabase.from('photos').select('*, users(id, name, avatar)').order('likes', { ascending: false }).limit(5)]);
+  const uploadCounts = new Map<string, { count: number; user: any }>();
+  photos?.forEach((p) => { const key = p.uploader_id; if (!uploadCounts.has(key)) uploadCounts.set(key, { count: 0, user: p.users }); uploadCounts.get(key)!.count += 1; });
+  const mostUploads = Array.from(uploadCounts.entries()).sort((a, b) => b[1].count - a[1].count).slice(0, 3).map(([uid, v]) => ({ user: { id: uid, name: v.user?.name || 'Unknown', avatar: v.user?.avatar }, count: v.count }));
+  const mostLiked = (topLiked || []).map((r) => ({ id: r.id, url: r.url, thumbnailUrl: r.thumbnail_url || r.url, caption: r.caption, likes: r.likes, likedBy: [], uploadedAt: r.uploaded_at, uploaderId: r.uploader_id, uploader: r.users ? { id: r.users.id, name: r.users.name, avatar: r.users.avatar } : { id: r.uploader_id, name: 'Unknown' } }));
   return { mostUploads, mostLiked };
 }
 
 // ── Messages ──────────────────────────────────────────────────────────────────
-export function getMessages(): { messages: Message[] } {
-  const messages = getItem<Message[]>(KEYS.MESSAGES, []);
-  return { messages };
+export async function getMessages(): Promise<{ messages: Message[] }> {
+  const { data } = await supabase.from('messages').select('*, users(id, name, avatar, role)').eq('is_global', true).order('created_at', { ascending: true }).limit(200);
+  return { messages: (data || []).map((r) => ({ id: r.id, senderId: r.sender_id, content: r.content, isGlobal: r.is_global, createdAt: r.created_at, sender: { id: r.users?.id || r.sender_id, name: r.users?.name || 'Unknown', avatar: r.users?.avatar, role: r.users?.role || 'EMPLOYEE' } })) };
 }
 
-export function sendMessage(content: string, userId: string, isGlobal = true): Message {
-  const messages = getItem<Message[]>(KEYS.MESSAGES, []);
-  const user = getUserById(userId);
-  const users = getItem<(User & { password?: string })[]>(KEYS.USERS, []);
-  const fullUser = users.find((u) => u.id === userId);
+export async function sendMessage(content: string, userId: string, isGlobal = true): Promise<Message> {
+  const { data, error } = await supabase.from('messages').insert({ id: crypto.randomUUID(), sender_id: userId, content, is_global: isGlobal }).select('*, users(id, name, avatar, role)').single();
+  if (error) throw new Error(error.message);
+  return { id: data.id, senderId: data.sender_id, content: data.content, isGlobal: data.is_global, createdAt: data.created_at, sender: { id: data.users?.id || userId, name: data.users?.name || 'Unknown', avatar: data.users?.avatar, role: data.users?.role || 'EMPLOYEE' } };
+}
 
-  const msg: Message = {
-    id: uuid(),
-    senderId: userId,
-    content,
-    isGlobal,
-    createdAt: new Date().toISOString(),
-    sender: {
-      id: userId,
-      name: user?.name || 'Unknown',
-      avatar: user?.avatar,
-      role: fullUser?.role || 'EMPLOYEE',
-    },
-  };
-  messages.push(msg);
-  setItem(KEYS.MESSAGES, messages);
-  return msg;
+export function subscribeToMessages(callback: (msg: Message) => void) {
+  return supabase.channel('messages-channel').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
+    const row = payload.new as any;
+    const { data: user } = await supabase.from('users').select('id, name, avatar, role').eq('id', row.sender_id).single();
+    callback({ id: row.id, senderId: row.sender_id, content: row.content, isGlobal: row.is_global, createdAt: row.created_at, sender: { id: user?.id || row.sender_id, name: user?.name || 'Unknown', avatar: user?.avatar, role: user?.role || 'EMPLOYEE' } });
+  }).subscribe();
 }
 
 // ── Feedback ──────────────────────────────────────────────────────────────────
-export function submitFeedback(
-  data: { rating: number; message: string; category: string; isAnonymous: boolean },
-  userId: string
-): Feedback {
-  const feedbacks = getItem<Feedback[]>(KEYS.FEEDBACKS, []);
-  const user = getUserById(userId);
-
-  const feedback: Feedback = {
-    id: uuid(),
-    userId: data.isAnonymous ? undefined : userId,
-    isAnonymous: data.isAnonymous,
-    rating: data.rating,
-    message: data.message,
-    category: data.category as any,
-    submittedAt: new Date().toISOString(),
-    user: data.isAnonymous ? undefined : user ? { id: user.id, name: user.name, avatar: user.avatar, email: user.email } : undefined,
-    displayName: data.isAnonymous ? 'Anonymous' : user?.name || 'Unknown',
-  };
-  feedbacks.push(feedback);
-  setItem(KEYS.FEEDBACKS, feedbacks);
-  addActivityLog(data.isAnonymous ? undefined : userId, 'FEEDBACK_SUBMITTED', `${feedback.displayName} submitted feedback`);
-  return feedback;
+export async function submitFeedback(data: { rating: number; message: string; category: string; isAnonymous: boolean }, userId: string): Promise<Feedback> {
+  const user = data.isAnonymous ? null : await getUserById(userId);
+  const id = crypto.randomUUID();
+  await supabase.from('feedbacks').insert({ id, user_id: data.isAnonymous ? null : userId, is_anonymous: data.isAnonymous, rating: data.rating, message: data.message, category: data.category });
+  await addActivityLog(data.isAnonymous ? undefined : userId, 'FEEDBACK_SUBMITTED', `${data.isAnonymous ? 'Anonymous' : user?.name || 'User'} submitted feedback`);
+  return { id, userId: data.isAnonymous ? undefined : userId, isAnonymous: data.isAnonymous, rating: data.rating, message: data.message, category: data.category as any, submittedAt: new Date().toISOString(), user: user ? { id: user.id, name: user.name, avatar: user.avatar, email: user.email } : undefined, displayName: data.isAnonymous ? 'Anonymous' : user?.name || 'Unknown' };
 }
 
-export function getFeedbacks(): Feedback[] {
-  return getItem<Feedback[]>(KEYS.FEEDBACKS, []).sort(
-    (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
-  );
+export async function getFeedbacks(): Promise<Feedback[]> {
+  const { data } = await supabase.from('feedbacks').select('*, users(id, name, avatar, email)').order('submitted_at', { ascending: false });
+  return (data || []).map((r) => ({ id: r.id, userId: r.user_id || undefined, isAnonymous: r.is_anonymous, rating: r.rating, message: r.message, category: r.category, submittedAt: r.submitted_at, user: r.users ? { id: r.users.id, name: r.users.name, avatar: r.users.avatar, email: r.users.email } : undefined, displayName: r.is_anonymous ? 'Anonymous' : r.users?.name || 'Unknown' }));
 }
 
 // ── Event Config ──────────────────────────────────────────────────────────────
-export function getEventConfig(): EventConfig {
-  return getItem<EventConfig>(KEYS.EVENT_CONFIG, {
-    id: 'evt-1',
-    outingDate: '2026-04-01T09:00:00.000Z',
-    venueName: 'Sunset Beach Resort',
-    venueAddress: '123 Ocean Drive, Goa, India',
-    description: 'Join us for a day of adventure, relaxation, and team bonding at the beautiful Sunset Beach Resort! Activities include beach games, kayaking, team challenges, and an epic BBQ dinner.',
-  });
+export async function getEventConfig(): Promise<EventConfig> {
+  const { data } = await supabase.from('event_config').select('*').eq('id', 'default-config').single();
+  return data ? { id: data.id, outingDate: data.outing_date, venueName: data.venue_name || undefined, venueAddress: data.venue_address || undefined, description: data.description || undefined, bannerUrl: data.banner_url || undefined } : { id: 'default-config', outingDate: '2026-04-01T09:00:00.000Z', venueName: 'Sunset Beach Resort', venueAddress: '123 Ocean Drive, Crystal Bay, CA 90210', description: 'Join us for an amazing team outing!' };
 }
 
-export function updateEventConfig(update: Partial<EventConfig>): EventConfig {
-  const config = getEventConfig();
-  const updated = { ...config, ...update };
-  setItem(KEYS.EVENT_CONFIG, updated);
-  return updated;
+export async function updateEventConfig(update: Partial<EventConfig>): Promise<EventConfig> {
+  const payload: any = {};
+  if (update.outingDate !== undefined)   payload.outing_date   = update.outingDate;
+  if (update.venueName !== undefined)    payload.venue_name    = update.venueName;
+  if (update.venueAddress !== undefined) payload.venue_address = update.venueAddress;
+  if (update.description !== undefined)  payload.description   = update.description;
+  if (update.bannerUrl !== undefined)    payload.banner_url    = update.bannerUrl;
+  await supabase.from('event_config').update(payload).eq('id', 'default-config');
+  return getEventConfig();
 }
 
 // ── Admin Stats ───────────────────────────────────────────────────────────────
-export function getAdminStats(): AdminStats {
-  const users = getItem<User[]>(KEYS.USERS, []);
-  const employees = users.filter((u) => u.role === 'EMPLOYEE');
-  const rsvps = getItem<RSVP[]>(KEYS.RSVPS, []);
-  const photos = getItem<Photo[]>(KEYS.PHOTOS, []);
-  const feedbacks = getItem<Feedback[]>(KEYS.FEEDBACKS, []);
-  const messages = getItem<Message[]>(KEYS.MESSAGES, []);
-
-  const attending = rsvps.filter((r) => r.attending).length;
-  const notAttending = rsvps.filter((r) => !r.attending).length;
-  const total = employees.length;
-
-  return {
-    totalInvited: total,
-    attending,
-    notAttending,
-    pending: total - attending - notAttending,
-    attendingPercent: total > 0 ? Math.round((attending / total) * 100) : 0,
-    notAttendingPercent: total > 0 ? Math.round((notAttending / total) * 100) : 0,
-    photoCount: photos.length,
-    feedbackCount: feedbacks.length,
-    messageCount: messages.length,
-  };
+export async function getAdminStats(): Promise<AdminStats> {
+  const [{ data: employees }, { data: rsvps }, { count: photoCount }, { count: feedbackCount }, { count: messageCount }] = await Promise.all([supabase.from('users').select('id').eq('role', 'EMPLOYEE'), supabase.from('rsvps').select('attending'), supabase.from('photos').select('*', { count: 'exact', head: true }), supabase.from('feedbacks').select('*', { count: 'exact', head: true }), supabase.from('messages').select('*', { count: 'exact', head: true })]);
+  const total = employees?.length || 0;
+  const attending = rsvps?.filter((r) => r.attending).length || 0;
+  const notAttending = rsvps?.filter((r) => !r.attending).length || 0;
+  return { totalInvited: total, attending, notAttending, pending: total - attending - notAttending, attendingPercent: total > 0 ? Math.round((attending / total) * 100) : 0, notAttendingPercent: total > 0 ? Math.round((notAttending / total) * 100) : 0, photoCount: photoCount || 0, feedbackCount: feedbackCount || 0, messageCount: messageCount || 0 };
 }
 
 // ── Activity Log ──────────────────────────────────────────────────────────────
-export function getActivityLog(): ActivityLog[] {
-  return getItem<ActivityLog[]>(KEYS.ACTIVITY_LOG, []).sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+export async function getActivityLog(): Promise<ActivityLog[]> {
+  const { data } = await supabase.from('activity_log').select('*, users(id, name, avatar)').order('created_at', { ascending: false }).limit(100);
+  return (data || []).map((r) => ({ id: r.id, userId: r.user_id || undefined, action: r.action, details: r.details || undefined, createdAt: r.created_at, user: r.users ? { id: r.users.id, name: r.users.name, avatar: r.users.avatar } : undefined }));
 }
 
-function addActivityLog(userId: string | undefined, action: string, details: string): void {
-  const logs = getItem<ActivityLog[]>(KEYS.ACTIVITY_LOG, []);
-  const user = userId ? getUserById(userId) : undefined;
-  logs.push({
-    id: uuid(),
-    userId,
-    action,
-    details,
-    createdAt: new Date().toISOString(),
-    user: user ? { id: user.id, name: user.name, avatar: user.avatar } : undefined,
-  });
-  setItem(KEYS.ACTIVITY_LOG, logs);
+async function addActivityLog(userId: string | undefined, action: string, details: string): Promise<void> {
+  await supabase.from('activity_log').insert({ id: crypto.randomUUID(), user_id: userId || null, action, details });
 }
 
-// ── File Helpers ──────────────────────────────────────────────────────────────
-function readFileAsDataURL(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-function createThumbnail(dataUrl: string, maxSize: number): Promise<string> {
+// ── Thumbnail helper ──────────────────────────────────────────────────────────
+function createThumbnailBlob(file: File, maxSize: number): Promise<Blob> {
   return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      const canvas = document.createElement('canvas');
       let { width, height } = img;
-
-      if (width > height) {
-        if (width > maxSize) {
-          height = Math.round((height * maxSize) / width);
-          width = maxSize;
-        }
-      } else {
-        if (height > maxSize) {
-          width = Math.round((width * maxSize) / height);
-          height = maxSize;
-        }
-      }
-
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', 0.7));
+      if (width > height) { if (width > maxSize) { height = Math.round((height * maxSize) / width); width = maxSize; } } else { if (height > maxSize) { width = Math.round((width * maxSize) / height); height = maxSize; } }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', 0.75);
+      URL.revokeObjectURL(url);
     };
-    img.onerror = () => resolve(dataUrl);
-    img.src = dataUrl;
+    img.onerror = () => resolve(file);
+    img.src = url;
   });
 }
 
-// ── Reset (dev helper) ────────────────────────────────────────────────────────
-export function resetDB(): void {
-  Object.values(KEYS).forEach((key) => localStorage.removeItem(key));
-  initDB();
-}
+export function resetDB(): void { console.warn('resetDB() is a no-op — data lives in Supabase.'); }

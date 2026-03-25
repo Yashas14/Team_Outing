@@ -20,8 +20,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
 
   login: async (email: string, password: string) => {
-    initDB();
-    const result = authenticateUser(email, password);
+    await initDB();
+    const result = await authenticateUser(email, password);
     if (!result) throw new Error('Invalid email or password. Check your credentials and try again.');
 
     if (result.requiresPasswordSetup) {
@@ -35,7 +35,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   setupNewPassword: async (email: string, password: string) => {
-    const user = setupPassword(email, password);
+    const user = await setupPassword(email, password);
     if (!user) throw new Error('User not found');
 
     localStorage.setItem('user', JSON.stringify(user));
@@ -50,30 +50,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   loadUser: () => {
-    initDB();
-    try {
-      const stored = localStorage.getItem('user');
-      if (stored) {
-        const user = JSON.parse(stored) as User;
-        // Verify user still exists in DB
-        const fresh = getUserById(user.id);
-        if (fresh) {
-          set({ user: fresh, isAuthenticated: true, isLoading: false });
-          connectSocket(fresh.role);
-          return;
+    (async () => {
+      await initDB();
+      try {
+        const stored = localStorage.getItem('user');
+        if (stored) {
+          const user = JSON.parse(stored) as User;
+          const fresh = await getUserById(user.id);
+          if (fresh) {
+            set({ user: fresh, isAuthenticated: true, isLoading: false });
+            connectSocket(fresh.role);
+            return;
+          }
         }
+        set({ isLoading: false });
+      } catch {
+        set({ isLoading: false });
       }
-      set({ isLoading: false });
-    } catch {
-      set({ isLoading: false });
-    }
+    })();
   },
 
   refreshUser: async () => {
     try {
       const currentUser = get().user;
       if (!currentUser) return;
-      const fresh = getUserById(currentUser.id);
+      const fresh = await getUserById(currentUser.id);
       if (fresh) {
         localStorage.setItem('user', JSON.stringify(fresh));
         set({ user: fresh });

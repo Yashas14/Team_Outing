@@ -15,12 +15,12 @@ export const useEventStore = create<EventState>((set) => ({
 
   fetchConfig: async () => {
     set({ isLoading: true });
-    const config = getEventConfig();
+    const config = await getEventConfig();
     set({ config, isLoading: false });
   },
 
   updateConfig: async (update) => {
-    const config = updateConfig_(update);
+    const config = await updateConfig_(update);
     set({ config });
   },
 }));

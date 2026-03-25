@@ -69,21 +69,21 @@ export default function AdminPage() {
 
   const fetchStats = async () => {
     try {
-      const stats = db.getAdminStats();
+      const stats = await db.getAdminStats();
       setStats(stats);
     } catch {}
   };
 
   const fetchPhotos = async () => {
     try {
-      const { photos: p } = db.getPhotos(1000);
+      const { photos: p } = await db.getPhotos(1000);
       setPhotos(p);
     } catch {}
   };
 
   const fetchActivity = async () => {
     try {
-      const logs = db.getActivityLog();
+      const logs = await db.getActivityLog();
       setActivityLog(logs);
     } catch {}
   };
@@ -128,7 +128,7 @@ export default function AdminPage() {
 
   const handleInvite = async () => {
     try {
-      db.inviteUser(inviteEmail, inviteName);
+      await db.inviteUser(inviteEmail, inviteName);
       toast.success(`Invited ${inviteName}!`);
       setShowInvite(false);
       setInviteEmail('');

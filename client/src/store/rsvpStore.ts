@@ -33,32 +33,32 @@ export const useRsvpStore = create<RSVPState>((set) => ({
   fetchMyRsvp: async () => {
     const userId = getCurrentUserId();
     if (!userId) return;
-    const rsvp = db.getMyRsvp(userId);
+    const rsvp = await db.getMyRsvp(userId);
     set({ myRsvp: rsvp });
   },
 
   fetchCounts: async () => {
-    const counts = db.getRsvpCounts();
+    const counts = await db.getRsvpCounts();
     set({ counts });
   },
 
   fetchAllRsvps: async () => {
     set({ isLoading: true });
-    const allRsvps = db.getAllRsvps();
+    const allRsvps = await db.getAllRsvps();
     set({ allRsvps, isLoading: false });
   },
 
   submitRsvp: async (attending: boolean) => {
     const userId = getCurrentUserId();
-    const rsvp = db.submitRsvp(userId, attending);
-    const counts = db.getRsvpCounts();
+    const rsvp = await db.submitRsvp(userId, attending);
+    const counts = await db.getRsvpCounts();
     set({ myRsvp: rsvp, counts });
   },
 
   updateRsvp: async (attending: boolean) => {
     const userId = getCurrentUserId();
-    const rsvp = db.submitRsvp(userId, attending);
-    const counts = db.getRsvpCounts();
+    const rsvp = await db.submitRsvp(userId, attending);
+    const counts = await db.getRsvpCounts();
     set({ myRsvp: rsvp, counts });
   },
 

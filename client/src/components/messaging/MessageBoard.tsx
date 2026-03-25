@@ -19,14 +19,22 @@ export default function MessageBoard() {
 
   useEffect(() => {
     fetchMessages();
+    // Subscribe to real-time new messages from other users
+    const channel = db.subscribeToMessages((newMsg) => {
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === newMsg.id)) return prev;
+        return [...prev, newMsg];
+      });
+    });
+    return () => { channel.unsubscribe(); };
   }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const fetchMessages = () => {
-    const { messages: msgs } = db.getMessages();
+  const fetchMessages = async () => {
+    const { messages: msgs } = await db.getMessages();
     setMessages(msgs);
   };
 
@@ -34,8 +42,8 @@ export default function MessageBoard() {
     if (!content.trim() || !user) return;
     setIsSending(true);
     try {
-      const msg = db.sendMessage(content.trim(), user.id, true);
-      setMessages((prev) => [...prev, msg]);
+      const msg = await db.sendMessage(content.trim(), user.id, true);
+      setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]);
       setContent('');
       setShowEmoji(false);
     } catch (err: any) {

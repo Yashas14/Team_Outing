@@ -127,7 +127,7 @@ export function PhotoGallery({ photos, onRefresh }: PhotoGalleryProps) {
 
   const toggleLike = async (photoId: string) => {
     try {
-      db.togglePhotoLike(photoId, user?.id || '');
+      await db.togglePhotoLike(photoId, user?.id || '');
       onRefresh();
     } catch {
       toast.error('Failed to like photo');
@@ -136,7 +136,7 @@ export function PhotoGallery({ photos, onRefresh }: PhotoGalleryProps) {
 
   const deletePhoto = async (photoId: string) => {
     try {
-      db.deletePhoto(photoId);
+      await db.deletePhoto(photoId);
       toast.success('Photo deleted');
       onRefresh();
     } catch {

@@ -28,23 +28,23 @@ export const usePollStore = create<PollState>((set, get) => ({
   fetchPolls: async () => {
     set({ isLoading: true });
     const userId = getCurrentUserId();
-    const polls = db.getPolls(userId);
+    const polls = await db.getPolls(userId);
     set({ polls, isLoading: false });
   },
 
   vote: async (pollId: string, optionId: string) => {
     const userId = getCurrentUserId();
-    db.votePoll(pollId, optionId, userId);
+    await db.votePoll(pollId, optionId, userId);
     await get().fetchPolls();
   },
 
   createPoll: async (question: string, options: string[]) => {
-    db.createPoll(question, options);
+    await db.createPoll(question, options);
     await get().fetchPolls();
   },
 
   deletePoll: async (pollId: string) => {
-    db.deletePoll(pollId);
+    await db.deletePoll(pollId);
     set({ polls: get().polls.filter((p) => p.id !== pollId) });
   },
 
