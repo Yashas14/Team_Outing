@@ -288,8 +288,22 @@ export async function submitFeedback(data: { rating: number; message: string; ca
 }
 
 export async function getFeedbacks(): Promise<Feedback[]> {
-  const { data } = await supabase.from('feedbacks').select('*, users(id, name, avatar, email)').order('submitted_at', { ascending: false });
-  return (data || []).map((r) => ({ id: r.id, userId: r.user_id || undefined, isAnonymous: r.is_anonymous, rating: r.rating, message: r.message, category: r.category, submittedAt: r.submitted_at, user: r.users ? { id: r.users.id, name: r.users.name, avatar: r.users.avatar, email: r.users.email } : undefined, displayName: r.is_anonymous ? 'Anonymous' : r.users?.name || 'Unknown' }));
+  const { data: rows, error } = await supabase.from('feedbacks').select('*').order('submitted_at', { ascending: false });
+  if (error) throw new Error(`getFeedbacks failed: ${error.message}`);
+  if (!rows || rows.length === 0) return [];
+
+  // Fetch user info separately (feedbacks.user_id has no FK in schema)
+  const userIds = [...new Set(rows.map((r) => r.user_id).filter(Boolean))];
+  const { data: users } = userIds.length
+    ? await supabase.from('users').select('id, name, avatar, email').in('id', userIds)
+    : { data: [] };
+  const userMap: Record<string, any> = {};
+  users?.forEach((u) => { userMap[u.id] = u; });
+
+  return rows.map((r) => {
+    const u = r.user_id ? userMap[r.user_id] : undefined;
+    return { id: r.id, userId: r.user_id || undefined, isAnonymous: r.is_anonymous, rating: r.rating, message: r.message, category: r.category, submittedAt: r.submitted_at, user: u ? { id: u.id, name: u.name, avatar: u.avatar, email: u.email } : undefined, displayName: r.is_anonymous ? 'Anonymous' : u?.name || 'Unknown' };
+  });
 }
 
 // ── Event Config ──────────────────────────────────────────────────────────────
@@ -320,8 +334,19 @@ export async function getAdminStats(): Promise<AdminStats> {
 
 // ── Activity Log ──────────────────────────────────────────────────────────────
 export async function getActivityLog(): Promise<ActivityLog[]> {
-  const { data } = await supabase.from('activity_log').select('*, users(id, name, avatar)').order('created_at', { ascending: false }).limit(100);
-  return (data || []).map((r) => ({ id: r.id, userId: r.user_id || undefined, action: r.action, details: r.details || undefined, createdAt: r.created_at, user: r.users ? { id: r.users.id, name: r.users.name, avatar: r.users.avatar } : undefined }));
+  const { data: rows, error } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(100);
+  if (error) throw new Error(`getActivityLog failed: ${error.message}`);
+  if (!rows || rows.length === 0) return [];
+
+  // Fetch user info separately (avoids FK dependency)
+  const userIds = [...new Set(rows.map((r) => r.user_id).filter(Boolean))];
+  const { data: users } = userIds.length
+    ? await supabase.from('users').select('id, name, avatar').in('id', userIds)
+    : { data: [] };
+  const userMap: Record<string, { id: string; name: string; avatar?: string }> = {};
+  users?.forEach((u) => { userMap[u.id] = { id: u.id, name: u.name, avatar: u.avatar }; });
+
+  return rows.map((r) => ({ id: r.id, userId: r.user_id || undefined, action: r.action, details: r.details || undefined, createdAt: r.created_at, user: r.user_id ? userMap[r.user_id] : undefined }));
 }
 
 async function addActivityLog(userId: string | undefined, action: string, details: string): Promise<void> {
