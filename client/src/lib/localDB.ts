@@ -24,7 +24,7 @@ export async function initDB(): Promise<void> {
     ]);
     await supabase.from('event_config').upsert({
       id: 'default-config',
-      outing_date: '2026-04-01T09:00:00.000Z',
+      outing_date: '2026-03-31T18:30:00.000Z',
       venue_name: 'Sunset Beach Resort',
       venue_address: '123 Ocean Drive, Crystal Bay, CA 90210',
       description: 'Join us for an amazing day of fun, food, and team bonding! Beach games, BBQ lunch, team challenges, and sunset dinner await. This is going to be the best team outing yet!',
