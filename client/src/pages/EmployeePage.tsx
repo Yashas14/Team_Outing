@@ -44,7 +44,9 @@ export default function EmployeePage() {
       setPhotos(p);
       const lb = await db.getLeaderboard();
       setLeaderboard(lb);
-    } catch {}
+    } catch (err: any) {
+      console.error('fetchPhotos error:', err?.message || err);
+    }
   };
 
   const TABS: { id: Tab; icon: React.ReactNode; label: string }[] = [

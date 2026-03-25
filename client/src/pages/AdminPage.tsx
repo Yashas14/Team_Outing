@@ -77,8 +77,11 @@ export default function AdminPage() {
   const fetchPhotos = async () => {
     try {
       const { photos: p } = await db.getPhotos(1000);
+      console.log('fetchPhotos got:', p.length, 'photos');
       setPhotos(p);
-    } catch {}
+    } catch (err: any) {
+      console.error('fetchPhotos error:', err?.message || err);
+    }
   };
 
   const fetchActivity = async () => {

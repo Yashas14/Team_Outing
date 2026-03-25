@@ -160,13 +160,24 @@ export async function deletePoll(pollId: string): Promise<void> {
 
 // ── Photos ────────────────────────────────────────────────────────────────────
 export async function getPhotos(limit = 1000): Promise<{ photos: Photo[] }> {
-  const { data: rows } = await supabase.from('photos').select('*, users(id, name, avatar)').order('uploaded_at', { ascending: false }).limit(limit);
-  if (!rows) return { photos: [] };
+  const { data: rows, error: photosError } = await supabase.from('photos').select('*').order('uploaded_at', { ascending: false }).limit(limit);
+  if (photosError) throw new Error(`getPhotos failed: ${photosError.message}`);
+  if (!rows || rows.length === 0) return { photos: [] };
+
+  // Fetch uploader info separately (avoids FK dependency)
+  const uploaderIds = [...new Set(rows.map((r) => r.uploader_id).filter(Boolean))];
+  const { data: users } = uploaderIds.length
+    ? await supabase.from('users').select('id, name, avatar').in('id', uploaderIds)
+    : { data: [] };
+  const userMap: Record<string, { id: string; name: string; avatar?: string }> = {};
+  users?.forEach((u) => { userMap[u.id] = { id: u.id, name: u.name, avatar: u.avatar }; });
+
   const photoIds = rows.map((r) => r.id);
-  const { data: likes } = photoIds.length ? await supabase.from('photo_likes').select('photo_id, user_id').in('photo_id', photoIds) : { data: [] };
+  const { data: likes } = await supabase.from('photo_likes').select('photo_id, user_id').in('photo_id', photoIds);
   const likeMap: Record<string, string[]> = {};
   likes?.forEach((l) => { if (!likeMap[l.photo_id]) likeMap[l.photo_id] = []; likeMap[l.photo_id].push(l.user_id); });
-  return { photos: rows.map((r) => ({ id: r.id, url: r.url, thumbnailUrl: r.thumbnail_url || r.url, caption: r.caption || undefined, likes: r.likes, likedBy: likeMap[r.id] || [], uploadedAt: r.uploaded_at, uploaderId: r.uploader_id, uploader: r.users ? { id: r.users.id, name: r.users.name, avatar: r.users.avatar } : { id: r.uploader_id, name: 'Unknown' } })) };
+
+  return { photos: rows.map((r) => ({ id: r.id, url: r.url, thumbnailUrl: r.thumbnail_url || r.url, caption: r.caption || undefined, likes: r.likes, likedBy: likeMap[r.id] || [], uploadedAt: r.uploaded_at, uploaderId: r.uploader_id, uploader: userMap[r.uploader_id] || { id: r.uploader_id, name: 'Unknown' } })) };
 }
 
 export async function uploadPhotos(files: File[], caption: string, userId: string): Promise<void> {
@@ -227,11 +238,23 @@ export async function deletePhoto(photoId: string): Promise<void> {
 }
 
 export async function getLeaderboard(): Promise<Leaderboard> {
-  const [{ data: photos }, { data: topLiked }] = await Promise.all([supabase.from('photos').select('uploader_id, users(id, name, avatar)'), supabase.from('photos').select('*, users(id, name, avatar)').order('likes', { ascending: false }).limit(5)]);
-  const uploadCounts = new Map<string, { count: number; user: any }>();
-  photos?.forEach((p) => { const key = p.uploader_id; if (!uploadCounts.has(key)) uploadCounts.set(key, { count: 0, user: p.users }); uploadCounts.get(key)!.count += 1; });
-  const mostUploads = Array.from(uploadCounts.entries()).sort((a, b) => b[1].count - a[1].count).slice(0, 3).map(([uid, v]) => ({ user: { id: uid, name: v.user?.name || 'Unknown', avatar: v.user?.avatar }, count: v.count }));
-  const mostLiked = (topLiked || []).map((r) => ({ id: r.id, url: r.url, thumbnailUrl: r.thumbnail_url || r.url, caption: r.caption, likes: r.likes, likedBy: [], uploadedAt: r.uploaded_at, uploaderId: r.uploader_id, uploader: r.users ? { id: r.users.id, name: r.users.name, avatar: r.users.avatar } : { id: r.uploader_id, name: 'Unknown' } }));
+  const [{ data: photoRows }, { data: topLiked }] = await Promise.all([
+    supabase.from('photos').select('uploader_id'),
+    supabase.from('photos').select('*').order('likes', { ascending: false }).limit(5),
+  ]);
+
+  // Collect unique uploader IDs to fetch names
+  const allUploaderIds = [...new Set([...(photoRows || []).map((p) => p.uploader_id), ...(topLiked || []).map((p) => p.uploader_id)].filter(Boolean))];
+  const { data: users } = allUploaderIds.length
+    ? await supabase.from('users').select('id, name, avatar').in('id', allUploaderIds)
+    : { data: [] };
+  const userMap: Record<string, { id: string; name: string; avatar?: string }> = {};
+  users?.forEach((u) => { userMap[u.id] = { id: u.id, name: u.name, avatar: u.avatar }; });
+
+  const uploadCounts = new Map<string, number>();
+  photoRows?.forEach((p) => { uploadCounts.set(p.uploader_id, (uploadCounts.get(p.uploader_id) || 0) + 1); });
+  const mostUploads = Array.from(uploadCounts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([uid, count]) => ({ user: userMap[uid] || { id: uid, name: 'Unknown' }, count }));
+  const mostLiked = (topLiked || []).map((r) => ({ id: r.id, url: r.url, thumbnailUrl: r.thumbnail_url || r.url, caption: r.caption, likes: r.likes, likedBy: [], uploadedAt: r.uploaded_at, uploaderId: r.uploader_id, uploader: userMap[r.uploader_id] || { id: r.uploader_id, name: 'Unknown' } }));
   return { mostUploads, mostLiked };
 }
 
