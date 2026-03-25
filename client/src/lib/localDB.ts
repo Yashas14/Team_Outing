@@ -174,14 +174,38 @@ export async function uploadPhotos(files: File[], caption: string, userId: strin
   for (const file of files) {
     const ext = file.name.split('.').pop() || 'jpg';
     const path = `${userId}/${crypto.randomUUID()}.${ext}`;
-    const { data: stored, error } = await supabase.storage.from('photos').upload(path, file, { upsert: false });
-    if (error) throw new Error(error.message);
+
+    // Upload original to Supabase Storage
+    const { data: stored, error: uploadError } = await supabase.storage
+      .from('photos')
+      .upload(path, file, { upsert: false });
+    if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
+
     const { data: { publicUrl } } = supabase.storage.from('photos').getPublicUrl(stored.path);
-    const thumbBlob = await createThumbnailBlob(file, 400);
-    const thumbPath = `${userId}/thumb_${crypto.randomUUID()}.jpg`;
-    const { data: storedThumb } = await supabase.storage.from('photos').upload(thumbPath, thumbBlob, { upsert: false, contentType: 'image/jpeg' });
-    const thumbUrl = storedThumb ? supabase.storage.from('photos').getPublicUrl(storedThumb.path).data.publicUrl : publicUrl;
-    await supabase.from('photos').insert({ id: crypto.randomUUID(), url: publicUrl, thumbnail_url: thumbUrl, caption: caption || null, likes: 0, uploader_id: userId });
+
+    // Upload thumbnail
+    let thumbUrl = publicUrl;
+    try {
+      const thumbBlob = await createThumbnailBlob(file, 400);
+      const thumbPath = `${userId}/thumb_${crypto.randomUUID()}.jpg`;
+      const { data: storedThumb } = await supabase.storage
+        .from('photos')
+        .upload(thumbPath, thumbBlob, { upsert: false, contentType: 'image/jpeg' });
+      if (storedThumb) {
+        thumbUrl = supabase.storage.from('photos').getPublicUrl(storedThumb.path).data.publicUrl;
+      }
+    } catch { /* thumbnail failure is non-fatal, use original */ }
+
+    // Save record to photos table
+    const { error: insertError } = await supabase.from('photos').insert({
+      id: crypto.randomUUID(),
+      url: publicUrl,
+      thumbnail_url: thumbUrl,
+      caption: caption || null,
+      likes: 0,
+      uploader_id: userId,
+    });
+    if (insertError) throw new Error(`Photo save failed: ${insertError.message}`);
   }
   await addActivityLog(userId, 'PHOTO_UPLOADED', `${user?.name || 'User'} uploaded ${files.length} photo(s)`);
 }
