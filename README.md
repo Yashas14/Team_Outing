@@ -187,3 +187,12 @@ team-outing/
 ---
 
 *Built for Team Outing — April 1st, 2026 🎉*
+
+## 👤 Author
+
+**Yashas D**
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Yashas%20D-0A66C2?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/yashasd2004/)
+[![GitHub](https://img.shields.io/badge/GitHub-Yashas14-181717?logo=github&logoColor=white)](https://github.com/Yashas14)
+
+---
